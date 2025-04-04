@@ -45,19 +45,21 @@ class CardSprite(pygame.sprite.Sprite):
 
 
 # --- Create 2 Decks (Full 4-Suit Spider) ---
-def create_double_deck(image_dir, card_size):
+def create_double_deck(image_dir, card_size, name = None):
     ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "jack", "queen", "king", "ace"]
     suits = ["spades", "hearts", "diamonds", "clubs"]
+    if name == None:
+        deck = []
+        for suit in suits:
+            for rank in ranks:
+                for _ in range(2):
+                    card = Card(rank, suit)
+                    sprite = CardSprite(card, image_dir, card_size=card_size)
+                    deck.append(sprite)
 
-    deck = []
-    for suit in suits:
-        for rank in ranks:
-            for _ in range(2):
-                card = Card(rank, suit)
-                sprite = CardSprite(card, image_dir, card_size=card_size)
-                deck.append(sprite)
-
-    random.shuffle(deck)
+        random.shuffle(deck)
+    else:
+        
     return deck
 
 
