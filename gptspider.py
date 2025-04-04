@@ -2,6 +2,8 @@ import pygame
 import sys
 import os
 import random
+RANKS = 'KQJT98765432A'
+SUITS = 'SHDC'
 
 # --- Card Logic ---
 class Card:
@@ -14,11 +16,10 @@ class Card:
         self.face_up = not self.face_up
 
     def get_id(self):
-        return f"{self.rank}_of_{self.suit}".lower()
+        return self.rank + self.suit
 
     def rank_value(self):
-        order = ["ace", "2", "3", "4", "5", "6", "7", "8", "9", "10", "jack", "queen", "king"]
-        return order.index(self.rank)
+        return RANKS.index(self.rank)
 
 
 class CardSprite(pygame.sprite.Sprite):
@@ -46,20 +47,34 @@ class CardSprite(pygame.sprite.Sprite):
 
 # --- Create 2 Decks (Full 4-Suit Spider) ---
 def create_double_deck(image_dir, card_size, name = None):
-    ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "jack", "queen", "king", "ace"]
-    suits = ["spades", "hearts", "diamonds", "clubs"]
+
     if name == None:
         deck = []
-        for suit in suits:
-            for rank in ranks:
+        for suit in SUITS:
+            for rank in RANKS:
                 for _ in range(2):
                     card = Card(rank, suit)
                     sprite = CardSprite(card, image_dir, card_size=card_size)
                     deck.append(sprite)
 
         random.shuffle(deck)
+        savedeck = []
+        for crd in deck:
+            id = crd.card.get_id()
+            savedeck.append(crd.card.get_id())
+
+        #tbd - crc and save to decks
     else:
-        
+        dfname = 'decks/' + name + '.txt'
+        with open(dfname,'r') as f:
+            deckfile = eval(f.read())
+            deck = []
+            for cardname in deckfile:
+                for _ in range(2):
+                    card = Card(cardname[0],cardname[1])
+                    sprite = CardSprite(card, image_dir, card_size=card_size)
+                    deck.append(sprite)
+
     return deck
 
 
@@ -155,7 +170,7 @@ while running:
                         if last_card.rect.collidepoint(event.pos):
                             src_val = selected_card.card.rank_value()
                             dst_val = last_card.card.rank_value()
-                            if src_val == dst_val - 1:
+                            if src_val == dst_val + 1:
                                 new_x = 50 + i * 90
                                 new_y = 50 + len(pile) * 30
                                 selected_card.rect.topleft = (new_x, new_y)
