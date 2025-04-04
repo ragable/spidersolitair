@@ -2,8 +2,10 @@ import pygame
 import sys
 import os
 import random
+import zlib
 RANKS = 'KQJT98765432A'
 SUITS = 'SHDC'
+STANDARD_DECK = [rank + suit for rank in RANKS for suit in SUITS]
 
 # --- Card Logic ---
 class Card:
@@ -60,20 +62,22 @@ def create_double_deck(image_dir, card_size, name = None):
         random.shuffle(deck)
         savedeck = []
         for crd in deck:
-            id = crd.card.get_id()
             savedeck.append(crd.card.get_id())
-
-        #tbd - crc and save to decks
+        ba = bytearray([STANDARD_DECK.index(card_) for card_ in savedeck])
+        crc = zlib.crc32(ba)
+        fn = 'decks/' + hex(crc)[2:] + '.txt'
+        with open(fn, 'w') as f1:
+            f1.write(str(savedeck))
     else:
         dfname = 'decks/' + name + '.txt'
-        with open(dfname,'r') as f:
-            deckfile = eval(f.read())
-            deck = []
-            for cardname in deckfile:
-                for _ in range(2):
-                    card = Card(cardname[0],cardname[1])
-                    sprite = CardSprite(card, image_dir, card_size=card_size)
-                    deck.append(sprite)
+        f = open(dfname,'r')
+        deckfile = eval(f.read())
+        deck = []
+        for cardname in deckfile:
+            for _ in range(2):
+                card = Card(cardname[0],cardname[1])
+                sprite = CardSprite(card, image_dir, card_size=card_size)
+                deck.append(sprite)
 
     return deck
 
