@@ -1,206 +1,134 @@
 import pygame
-import sys
 import os
+import sys
+import numpy as np
 import random
-import zlib
-RANKS = 'KQJT98765432A'
-SUITS = 'SHDC'
-STANDARD_DECK = [rank + suit for rank in RANKS for suit in SUITS]
+import time
+from spider_engine import SpiderEngine
 
-# --- Card Logic ---
-class Card:
-    def __init__(self, rank, suit, face_up=False):
-        self.rank = rank
-        self.suit = suit
-        self.face_up = face_up
+CARD_WIDTH = 80
+CARD_HEIGHT = 120
+CARD_SPACING_Y = 30
+PILE_SPACING_X = 100
+MARGIN = 20
+HEXNUM = '0123456789ABCDEF'
+class SpiderDisplay:
+    def __init__(self, card_folder="img/cards/"):
+        pygame.init()
+        self.card_folder = card_folder
 
-    def flip(self):
-        self.face_up = not self.face_up
+        window_width = MARGIN * 2 + PILE_SPACING_X * 10
+        window_height = MARGIN * 2 + CARD_SPACING_Y * 20 + CARD_HEIGHT
+        self.screen = pygame.display.set_mode((window_width, window_height))
+        pygame.display.set_caption("Spider Solitaire Display")
 
-    def get_id(self):
-        return self.rank + self.suit
+        self.clock = pygame.time.Clock()
+        self.card_images = self.load_card_images()
 
-    def rank_value(self):
-        return RANKS.index(self.rank)
+        # Support for a renamed back image
+        if "XX" not in self.card_images and "BACK-SIDE" in self.card_images:
+            self.card_images["XX"] = self.card_images["BACK-SIDE"]
+        self.moveq = []
 
+    def load_card_images(self):
+        card_images = {}
+        for filename in os.listdir(self.card_folder):
+            if filename.endswith(".png"):
+                name = filename[:-4]  # Remove .png
+                path = os.path.join(self.card_folder, filename)
+                image = pygame.image.load(path).convert_alpha()
+                image = pygame.transform.scale(image, (CARD_WIDTH, CARD_HEIGHT))
+                card_images[name.upper()] = image
+        return card_images
 
-class CardSprite(pygame.sprite.Sprite):
-    def __init__(self, card, image_dir, pos=(0, 0), card_size=(80, 120)):
-        super().__init__()
-        self.card = card
-        self.image_dir = image_dir
-        self.card_size = card_size
-        self.front_image = self.load_image(card.get_id())
-        self.back_image = self.load_image("back-side")
-        self.image = self.back_image if not self.card.face_up else self.front_image
-        self.rect = self.image.get_rect(topleft=pos)
-        self.dragging = False
-        self.original_pos = pos
+    def draw_piles(self, piles):
+        self.screen.fill((0, 128, 0))  # green background like a card table
 
-    def load_image(self, name):
-        path = os.path.join(self.image_dir, f"{name}.png")
-        img = pygame.image.load(path).convert_alpha()
-        img = pygame.transform.smoothscale(img, self.card_size)
-        return img
+        for i, pile in enumerate(piles):
+            x = MARGIN + i * PILE_SPACING_X
+            for j, card in enumerate(pile):
+                y = MARGIN + j * CARD_SPACING_Y
+                card_str = card.upper()
+                if card_str in self.card_images:
+                    self.screen.blit(self.card_images[card_str], (x, y))
+                else:
+                    pygame.draw.rect(self.screen, (255, 0, 0), (x, y, CARD_WIDTH, CARD_HEIGHT))
+                    print(f"Missing image for card: {card_str}")
 
-    def update(self):
-        self.image = self.back_image if not self.card.face_up else self.front_image
+        pygame.display.flip()
+        self.clock.tick(30)
 
+    def wait_for_key(self):
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.quit()
+                if event.type == pygame.KEYDOWN:
+                    return
 
-# --- Create 2 Decks (Full 4-Suit Spider) ---
-def create_double_deck(image_dir, card_size, name = None):
+    def quit(self):
+        pygame.quit()
+        sys.exit()
 
-    if name == None:
-        deck = []
-        for suit in SUITS:
-            for rank in RANKS:
-                for _ in range(2):
-                    card = Card(rank, suit)
-                    sprite = CardSprite(card, image_dir, card_size=card_size)
-                    deck.append(sprite)
+def create_initial_deal():
+    suits = ["S", "H", "D", "C"]  # All four suits
+    ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"]
 
-        random.shuffle(deck)
-        savedeck = []
-        for crd in deck:
-            savedeck.append(crd.card.get_id())
-        ba = bytearray([STANDARD_DECK.index(card_) for card_ in savedeck])
-        crc = zlib.crc32(ba)
-        fn = 'decks/' + hex(crc)[2:] + '.txt'
-        with open(fn, 'w') as f1:
-            f1.write(str(savedeck))
-    else:
-        dfname = 'decks/' + name + '.txt'
-        f = open(dfname,'r')
-        deckfile = eval(f.read())
-        deck = []
-        for cardname in deckfile:
-            for _ in range(2):
-                card = Card(cardname[0],cardname[1])
-                sprite = CardSprite(card, image_dir, card_size=card_size)
-                deck.append(sprite)
+    # Build a full 2-deck Spider game with 4 suits (13 ranks × 4 suits × 2 decks = 104 cards)
+    full_deck = [rank + suit for suit in suits for rank in ranks] * 2  # 104 cards
+    random.shuffle(full_deck)
 
-    return deck
-
-
-# --- Setup Initial Spider Layout ---
-def setup_spider_tableau(deck):
     piles = [[] for _ in range(10)]
-    index = 0
+
     for i in range(10):
         num_cards = 6 if i < 4 else 5
         for j in range(num_cards):
-            card = deck[index]
-            card.rect.topleft = (50 + i * 90, 50 + j * 30)
-            card.original_pos = card.rect.topleft
-            card.card.face_up = (j == num_cards - 1)
-            card.update()
-            piles[i].append(card)
-            index += 1
-    stock = deck[index:]
-    return piles, stock
-
-
-def draw_stock_and_buttons(screen, stock_pile, card_size):
-    if stock_pile:
-        stock_back = pygame.transform.smoothscale(pygame.image.load(os.path.join(image_dir, "back-side.png")).convert_alpha(), card_size)
-        screen.blit(stock_back, (1000, 50))
-        pygame.draw.rect(screen, (255, 255, 255), (1000, 50, card_size[0], card_size[1]), 2)
-
-    pygame.draw.rect(screen, (200, 200, 200), (1000, 200, 100, 40))
-    font = pygame.font.SysFont(None, 24)
-    text = font.render("Redeal", True, (0, 0, 0))
-    screen.blit(text, (1020, 210))
-
-    for i in range(8):
-        x = 800 + i * 35
-        pygame.draw.rect(screen, (255, 255, 255), (x, 600, 30, 45), 2)
-
-
-# --- Pygame Setup ---
-pygame.init()
-screen = pygame.display.set_mode((1200, 700))
-pygame.display.set_caption("Spider Solitaire - Initial Deal")
-clock = pygame.time.Clock()
-
-image_dir = "img/cards/"
-card_size = (80, 120)
-
-full_deck = create_double_deck(image_dir, card_size)
-tableau_piles, stock_pile = setup_spider_tableau(full_deck)
-all_sprites = pygame.sprite.LayeredUpdates([card for pile in tableau_piles for card in pile])
-
-selected_card = None
-selected_pile = None
-mouse_offset = (0, 0)
-
-# --- Game Loop ---
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            x, y = event.pos
-            if 1000 <= x <= 1100 and 200 <= y <= 240:
-                full_deck = create_double_deck(image_dir, card_size)
-                tableau_piles, stock_pile = setup_spider_tableau(full_deck)
-                all_sprites = pygame.sprite.LayeredUpdates([card for pile in tableau_piles for card in pile])
-
-            elif 1000 <= x <= 1000 + card_size[0] and 50 <= y <= 50 + card_size[1]:
-                print("Stock clicked - deal logic to be implemented")
-
+            card = full_deck.pop()
+            if j == num_cards - 1:
+                piles[i].append(card)  # Face-up
             else:
-                for pile in tableau_piles:
-                    if pile:
-                        top_card = pile[-1]
-                        if top_card.rect.collidepoint(event.pos):
-                            if not top_card.card.face_up:
-                                top_card.card.flip()
-                                top_card.update()
-                            else:
-                                selected_card = top_card
-                                selected_pile = pile
-                                mouse_offset = (event.pos[0] - top_card.rect.x, event.pos[1] - top_card.rect.y)
-                                all_sprites.move_to_front(selected_card)
-                                break
+                piles[i].append("XX")  # Face-down
 
-        elif event.type == pygame.MOUSEBUTTONUP:
-            if selected_card:
-                dropped = False
-                for i, pile in enumerate(tableau_piles):
-                    if pile:
-                        last_card = pile[-1]
-                        if last_card.rect.collidepoint(event.pos):
-                            src_val = selected_card.card.rank_value()
-                            dst_val = last_card.card.rank_value()
-                            if src_val == dst_val + 1:
-                                new_x = 50 + i * 90
-                                new_y = 50 + len(pile) * 30
-                                selected_card.rect.topleft = (new_x, new_y)
-                                selected_card.original_pos = selected_card.rect.topleft
-                                pile.append(selected_card)
-                                if selected_pile and selected_card in selected_pile:
-                                    selected_pile.remove(selected_card)
-                                all_sprites.move_to_front(selected_card)
-                                dropped = True
-                                break
-                if not dropped:
-                    selected_card.rect.topleft = selected_card.original_pos
-                selected_card.dragging = False
-                selected_card = None
-                selected_pile = None
+    return [np.array(pile) for pile in piles], full_deck
 
-        elif event.type == pygame.MOUSEMOTION:
-            if selected_card:
-                selected_card.rect.topleft = (event.pos[0] - mouse_offset[0], event.pos[1] - mouse_offset[1])
-                selected_card.dragging = True
+if __name__ == "__main__":
+    piles, stock = create_initial_deal()
+    engine = SpiderEngine(piles)
+    display = SpiderDisplay()
 
-    screen.fill((34, 139, 34))
-    all_sprites.draw(screen)
-    draw_stock_and_buttons(screen, stock_pile, card_size)
-    pygame.display.flip()
-    clock.tick(60)
+    # Initial display
+    display.draw_piles([list(p) for p in engine.piles])
+    display.wait_for_key()
 
-pygame.quit()
-sys.exit()
+
+    while True:
+        moves = engine.get_all_possible_moves()
+        if not moves:
+            print("No more possible moves.")
+            break
+
+        move = random.choice(moves)
+        #print(f"Random move: from {move[0]} to {move[1]}, length {move[2]}")
+        if engine.move_sequence(move):
+            display.moveq.append(move)
+            if len(display.moveq) > 10:
+                display.moveq = display.moveq[1:]
+
+
+        # Flip card if needed
+        from_idx = HEXNUM.index(move[0])
+
+        pile = engine.piles[from_idx]
+        if len(pile) > 0 and pile[-1] == "XX":
+            for i in range(len(pile) - 1, -1, -1):
+                if pile[i] == "XX":
+                    if stock:
+                        pile[i] = stock.pop()
+                    else:
+                        pile[i] = "??"  # Unknown card fallback
+                    break
+
+        display.draw_piles(engine.piles)
+        display.wait_for_key()
+
+    display.quit()
