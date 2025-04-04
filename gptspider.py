@@ -3,7 +3,7 @@ import os
 import sys
 import numpy as np
 import random
-import time
+import zlib
 from spider_engine import SpiderEngine
 
 CARD_WIDTH = 80
@@ -70,14 +70,25 @@ class SpiderDisplay:
         pygame.quit()
         sys.exit()
 
-def create_initial_deal():
+def create_initial_deal(deckname):
     suits = ["S", "H", "D", "C"]  # All four suits
     ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"]
+    STANDARD_DECK= [rankitem + suititem for rankitem in ranks for suititem in suits]
 
-    # Build a full 2-deck Spider game with 4 suits (13 ranks × 4 suits × 2 decks = 104 cards)
-    full_deck = [rank + suit for suit in suits for rank in ranks] * 2  # 104 cards
-    random.shuffle(full_deck)
+    if deckname == None:
+        full_deck = STANDARD_DECK * 2  # 104 cards
+        random.shuffle(full_deck)
 
+
+        ba = bytearray([STANDARD_DECK.index(card_) for card_ in full_deck])
+        crc = zlib.crc32(ba)
+        dfilename = 'decks/'+ hex(crc)[2:] + '.txt'
+        with open(dfilename, 'w') as f:
+            f.write(str(full_deck))
+    else:
+        dfilename = 'decks/' + deckname + '.txt'
+        with open(dfilename,'r') as f:
+            full_deck = eval(f.read())
     piles = [[] for _ in range(10)]
 
     for i in range(10):
@@ -88,11 +99,10 @@ def create_initial_deal():
                 piles[i].append(card)  # Face-up
             else:
                 piles[i].append("XX")  # Face-down
-
     return [np.array(pile) for pile in piles], full_deck
 
-if __name__ == "__main__":
-    piles, stock = create_initial_deal()
+def main(deck = None):
+    piles, stock = create_initial_deal(deck)
     engine = SpiderEngine(piles)
     display = SpiderDisplay()
 
@@ -132,3 +142,5 @@ if __name__ == "__main__":
         display.wait_for_key()
 
     display.quit()
+if __name__ == "__main__":
+    main('f1f01170')
