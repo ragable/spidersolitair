@@ -25,7 +25,7 @@ class SpiderDisplay:
         # Support for a renamed back image
         if "XX" not in self.card_images and "BACK-SIDE" in self.card_images:
             self.card_images["XX"] = self.card_images["BACK-SIDE"]
-        self.moveq = []
+
 
     def load_card_images(self):
         card_images = {}
@@ -103,21 +103,30 @@ def main(deck=None):
     engine = SpiderEngine(piles)
     display = SpiderDisplay()
     gt = sgt.GameTree(piles_real)
+    mq = []
 
     display.draw_piles([list(p) for p in engine.piles])
     display.wait_for_key()
 
     while True:
         moves = engine.get_all_possible_moves()
-        if not moves:
-            print("No more possible moves.")
-            break
+        if not moves or len(mq) != len(set(mq)):
+            if len(stock) >= 10:
+                for i in range(10):
+                    card = stock.pop()
+                    engine.piles[i] = np.append(engine.piles[i], card)
+                display.draw_piles(engine.piles)
+                display.wait_for_key()
+                mq =[]
+                continue
+            else:
+                print("Stock empty — no more possible moves.")
+                break
 
         move = random.choice(moves)
-        if engine.move_sequence(move):
-            display.moveq.append(move)
-            if len(display.moveq) > 10:
-                display.moveq = display.moveq[1:]
+        mq.append(move)
+        print(str(mq))
+        engine.move_sequence(move)
 
         from_idx = sc.HEXNUM.index(move[0])
         pile = engine.piles[from_idx]
@@ -128,10 +137,11 @@ def main(deck=None):
                     break
 
         display.draw_piles(engine.piles)
-        gt.expand_with_move(move, engine.piles)
         display.wait_for_key()
+        pass
 
     display.quit()
 
+
 if __name__ == "__main__":
-    main('f1f01170')
+    main('b56fd2d2')
