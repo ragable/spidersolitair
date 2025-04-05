@@ -1,0 +1,9 @@
+suits = ["S", "H", "D", "C"]
+ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"]
+STANDARD_DECK = [rank + suit for rank in ranks for suit in suits]
+CARD_WIDTH = 80
+CARD_HEIGHT = 120
+CARD_SPACING_Y = 30
+PILE_SPACING_X = 100
+MARGIN = 20
+HEXNUM = '0123456789ABCDEF'

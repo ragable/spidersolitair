@@ -1,4 +1,7 @@
 import copy
+import zlib
+import spider_constants as sc
+
 
 class TreeNode:
     def __init__(self, state, parent=None, move=None, crc_id= None):
@@ -6,7 +9,13 @@ class TreeNode:
         self.parent = parent               # Parent TreeNode
         self.children = []                 # List of TreeNode
         self.move = move                   # Move taken to reach this state (from parent)
-        self.crc_id = crc_id
+        flatdisp = []
+        for item in state:
+            for subitem in item:
+                flatdisp.append(sc.STANDARD_DECK.index(subitem))
+        ba = bytearray([crd for crd in flatdisp])
+        self.crc_id = hex(zlib.crc32(ba))[2:]
+        pass
 
     def add_child(self, child_node):
         self.children.append(child_node)
