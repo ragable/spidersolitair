@@ -1,6 +1,7 @@
 # spider_engine.py
 HEXNUM = '0123456789ABCDEF'
 import numpy as np
+import spider_constants as sc
 
 class SpiderEngine:
     def __init__(self, piles):
@@ -26,9 +27,9 @@ class SpiderEngine:
         for i in range(len(cards) - 2, -1, -1):
             prev = cards[i]
             curr = tail[-1]
-            if self.suit(prev) != self.suit(curr):
+            if sc.SUITS.index(prev[1]) != sc.SUITS.index(curr[1]):
                 break
-            if self.rank_value(self.rank(prev)) != self.rank_value(self.rank(curr)) + 1:
+            if sc.RANKS.index(prev[0]) != sc.RANKS.index(curr[0]) + 1:
                 break
             tail.append(prev)
         return list(reversed(tail))
@@ -48,20 +49,9 @@ class SpiderEngine:
                     moves.append( HEXNUM[from_idx] + HEXNUM[to_idx] + HEXNUM[len(tail)])
                 else:
                     top_card = dest_pile[-1]
-                    if top_card != "XX" and self.rank_value(self.rank(top_card)) == self.rank_value(self.rank(tail[0])) + 1:
+                    if top_card != "XX" and sc.RANKS.index(top_card[0]) == sc.RANKS.index(tail[0][0]) + 1:
                         moves.append(HEXNUM[from_idx] + HEXNUM[to_idx] + HEXNUM[len(tail)])
         return moves
-
-    def rank(self, card):
-        return card[:-1]
-
-    def suit(self, card):
-        return card[-1]
-
-    def rank_value(self, r):
-        return {"A": 1, "2": 2, "3": 3, "4": 4, "5": 5,
-                "6": 6, "7": 7, "8": 8, "9": 9, "T": 10,
-                "J": 11, "Q": 12, "K": 13}[r]
 
     def move_sequence(self, mv_string):
         from_idx = HEXNUM.index(mv_string[0])
@@ -88,8 +78,8 @@ class SpiderEngine:
         if len(seq) < 2:
             return True
         try:
-            suits = [self.suit(c) for c in seq]
-            values = [self.rank_value(self.rank(c)) for c in seq]
+            suits = [sc.SUITS.index(c[1]) for c in seq]
+            values = [sc.RANKS.index(c[0]) for c in seq]
         except (KeyError, IndexError, ValueError):
             return False
         return all(s == suits[0] for s in suits) and all(values[i] == values[i+1] + 1 for i in range(len(values) - 1))

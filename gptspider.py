@@ -110,7 +110,11 @@ def main(deck=None):
 
     while True:
         moves = engine.get_all_possible_moves()
-        if not moves or len(mq) != len(set(mq)):
+        if not moves or (len(mq) != len(set(mq))and (mq[-1] != mq[-2])):
+            if not moves:
+                print('NO MOVES')
+            elif len(mq) != len(set(mq)) and mq[-1] != mq[-2]:
+                print("REPEATED MOVE")
             if len(stock) >= 10:
                 for i in range(10):
                     card = stock.pop()
@@ -125,6 +129,8 @@ def main(deck=None):
 
         move = random.choice(moves)
         mq.append(move)
+        if len(mq) > 5:
+            mq = mq[-5:]
         print(str(mq))
         engine.move_sequence(move)
 
@@ -144,4 +150,4 @@ def main(deck=None):
 
 
 if __name__ == "__main__":
-    main('b56fd2d2')
+    main('17edea70')

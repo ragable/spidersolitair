@@ -1,6 +1,6 @@
-suits = ["S", "H", "D", "C"]
-ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"]
-STANDARD_DECK = [rank + suit for rank in ranks for suit in suits]
+SUITS = 'SHDC'
+RANKS = "A23456789TJQK"
+STANDARD_DECK = [rank + suit for rank in RANKS for suit in SUITS]
 CARD_WIDTH = 80
 CARD_HEIGHT = 120
 CARD_SPACING_Y = 30
