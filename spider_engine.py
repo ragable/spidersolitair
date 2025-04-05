@@ -53,6 +53,33 @@ class SpiderEngine:
                         moves.append(HEXNUM[from_idx] + HEXNUM[to_idx] + HEXNUM[len(tail)])
         return moves
 
+    def rate_move(self, move):
+        orig = sc.HEXNUM.index(move[0])
+        dest = sc.HEXNUM.index(move[1])
+        howmany = sc.HEXNUM.index(move[2])
+        rating = 0
+        orig_visible = self.get_visible_cards(orig)
+        orig_tail = self.find_suited_tail(orig_visible)
+
+        dest_visible = self.get_visible_cards(dest)
+        if dest_visible[-1][1] == orig_tail[0][1]:
+            # extending run
+            rating += 2
+        else:
+            rating += 1
+        all_visible = [len(self.get_visible_cards(i)) for i in range(10)]
+        all_cards = [len(self.piles[i]) for i in range(10)]
+        num_blank_cols = sum([all_visible[i] == 0 for i in range(10)])
+        if howmany == len(self.piles[orig]):
+            if num_blank_cols == 0:
+                rating += 3
+            elif num_blank_cols > 0:
+                rating += 5
+        return rating
+
+
+
+
     def move_sequence(self, mv_string):
         from_idx = HEXNUM.index(mv_string[0])
         to_idx = HEXNUM.index(mv_string[1])
