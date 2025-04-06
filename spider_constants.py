@@ -1,3 +1,4 @@
+import datetime as dt
 SUITS = 'SHDC'
 RANKS = "A23456789TJQK"
 STANDARD_DECK = [rank + suit for rank in RANKS for suit in SUITS]
@@ -8,3 +9,4 @@ PILE_SPACING_X = 100
 MARGIN = 20
 HEXNUM = '0123456789ABCDEF'
 COLNUM = '0123456789ABCDEFGHIJ'
+BASE_DATE = dt.datetime(2000,1,1)

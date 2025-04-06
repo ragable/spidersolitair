@@ -7,6 +7,7 @@ import zlib
 from spider_engine import SpiderEngine
 from spider_game_tree import GameTree
 import spider_constants as sc
+import datetime as dt
 
 
 class SpiderDisplay:
@@ -46,7 +47,7 @@ class SpiderDisplay:
             y = sc.MARGIN
 
             # Draw face-down cards from even index
-            for card in piles[2 * col]:
+            for _ in piles[2 * col]:
                 self.screen.blit(self.card_images['BACK-SIDE'], (x, y))
                 y += sc.CARD_SPACING_Y
 
@@ -91,12 +92,11 @@ class SpiderDisplay:
                 full_deck = eval(f.read())
     
         piles = []
-    
-        i = 0
+
         sequence = [5,1,5,1,5,1,5,1,4,1,4,1,4,1,4,1,4,1,4,1]
         build = []
-        for j in sequence:
-            while len(build) != j:
+        for num in sequence:
+            while len(build) != num:
                 card = full_deck.pop()
                 build.append(card)
 
@@ -109,7 +109,7 @@ class SpiderDisplay:
         piles, stock = self.create_initial_deal(deck)
         engine = SpiderEngine(piles)
         display = SpiderDisplay()
-        #gt = GameTree([list(p) for p in piles_real])
+        gt = GameTree([list(p) for p in piles])
         mq = []
     
         display.draw_piles([list(p) for p in engine.piles])
@@ -127,16 +127,15 @@ class SpiderDisplay:
                     mq =[]
                     continue
                 else:
+
                     print("Stock empty — no more possible moves.")
-                    #gt.to_pickle("pckls/last_game_tree.pkl")
-                    print("Game tree saved to last_game_tree.pkl")
+                    fname = 'pckls/' +    str(int((dt.datetime.now() - sc.BASE_DATE).total_seconds()))+'.pkl'
+                    gt.to_pickle(fname)
+                    print("Game tree saved to " + fname)
                     break
-            print(20*'*')
-            print(f'Moves input: {moves}')
             move_ranks = []
             for move in moves:
                 move_ranks.append(engine.rate_move(move))
-            print(f'Move ranks: {move_ranks}')
             high = 0
             for rate in move_ranks:
                 if rate > high:
@@ -145,10 +144,7 @@ class SpiderDisplay:
             for i,rate in enumerate(move_ranks):
                 if rate == high:
                     results.append(moves[i])
-            print(f'Choices: {results}')
-
             move = random.choice(results)
-            print(f'Chosen: {move}')
             mq.append(move)
             if len(mq) > 5:
                 mq = mq[-5:]
@@ -164,7 +160,7 @@ class SpiderDisplay:
 
             display.draw_piles(engine.piles)
             # Save this move/state to game tree
-            #gt.expand_with_move(move, [list(p) for p in piles_real])
+            gt.expand_with_move(move, [list(p) for p in piles])
 
             display.wait_for_key()
             pass
@@ -175,4 +171,4 @@ class SpiderDisplay:
 if __name__ == "__main__":
 
     sd = SpiderDisplay()
-    sd.xeqt('b1ef9451')
+    sd.xeqt( )
