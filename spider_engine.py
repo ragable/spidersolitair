@@ -7,15 +7,6 @@ class SpiderEngine:
         self.piles = piles
 
 
-    def get_visible_cards(self, pile_idx):
-        pile = self.piles[pile_idx]
-        visible = []
-        for card in reversed(pile):
-            if card == "XX":
-                break
-            visible.append(card)
-        return list(reversed(visible))
-
     def find_suited_tail(self, cards):
         """
         Find the longest suited descending tail from the end of the visible cards.
@@ -57,10 +48,10 @@ class SpiderEngine:
         dest = sc.COLNUM.index(move[1])
         howmany = sc.HEXNUM.index(move[2])
         rating = 0
-        orig_visible = self.get_visible_cards(orig)
+        orig_visible = self.piles[orig]
         orig_tail = self.find_suited_tail(orig_visible)
 
-        dest_visible = self.get_visible_cards(dest)
+        dest_visible = self.piles[dest]
         if len(dest_visible) == 0:
             rating += 4
         elif dest_visible[-1][1] == orig_tail[0][1]:
@@ -68,7 +59,7 @@ class SpiderEngine:
             rating += 2
         else:
             rating += 1
-        all_visible = [len(self.get_visible_cards(2*i + 1)) for i in range(10)]
+        all_visible = [len(self.piles[2*i + 1]) for i in range(10)]
         all_cards = [len(self.piles[2*i]) + len(self.piles[2*i+1]) for i in range(10)]
         num_blank_cols = sum([all_visible[i] == 0 for i in range(10)])
         if howmany == len(self.piles[orig]):
@@ -87,7 +78,7 @@ class SpiderEngine:
         howmany = sc.HEXNUM.index(mv_string[2])
         pile_from = self.piles[from_idx]
         pile_to = self.piles[to_idx]
-        visible = self.get_visible_cards(from_idx)
+        visible = self.piles[from_idx]
 
         if len(visible) < howmany:
             return False

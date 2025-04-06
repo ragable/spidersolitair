@@ -121,7 +121,7 @@ class SpiderDisplay:
                 if len(stock) >= 10:
                     for i in range(10):
                         card = stock.pop()
-                        engine.piles[i] = np.append(engine.piles[i], card)
+                        engine.piles[2*i + 1] = np.append(engine.piles[2*i + 1], card)
                     display.draw_piles(engine.piles)
                     display.wait_for_key()
                     mq =[]
