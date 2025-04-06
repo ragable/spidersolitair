@@ -1,5 +1,4 @@
 # spider_engine.py
-HEXNUM = '0123456789ABCDEF'
 import numpy as np
 import spider_constants as sc
 
@@ -21,7 +20,7 @@ class SpiderEngine:
         """
         Find the longest suited descending tail from the end of the visible cards.
         """
-        if not cards:
+        if len(cards) == 0:
             return []
         tail = [cards[-1]]
         for i in range(len(cards) - 2, -1, -1):
@@ -37,38 +36,40 @@ class SpiderEngine:
     def get_all_possible_moves(self):
         moves = []
         for from_idx in range(10):
-            visible = self.get_visible_cards(from_idx)
+            visible = self.piles[2*from_idx + 1] #self.get_visible_cards(from_idx)
             tail = self.find_suited_tail(visible)
             if not tail:
                 continue
             for to_idx in range(10):
                 if from_idx == to_idx:
                     continue
-                dest_pile = self.piles[to_idx]
+                dest_pile = self.piles[2*to_idx + 1]
                 if len(dest_pile) == 0:
-                    moves.append( HEXNUM[from_idx] + HEXNUM[to_idx] + HEXNUM[len(tail)])
+                    moves.append( sc.COLNUM[2*from_idx + 1] + sc.COLNUM[2*to_idx + 1] + sc.HEXNUM[len(tail)])
                 else:
                     top_card = dest_pile[-1]
                     if top_card != "XX" and sc.RANKS.index(top_card[0]) == sc.RANKS.index(tail[0][0]) + 1:
-                        moves.append(HEXNUM[from_idx] + HEXNUM[to_idx] + HEXNUM[len(tail)])
+                        moves.append(sc.COLNUM[2*from_idx + 1] + sc.COLNUM[2*to_idx + 1] + sc.HEXNUM[len(tail)])
         return moves
 
     def rate_move(self, move):
-        orig = sc.HEXNUM.index(move[0])
-        dest = sc.HEXNUM.index(move[1])
+        orig = sc.COLNUM.index(move[0])
+        dest = sc.COLNUM.index(move[1])
         howmany = sc.HEXNUM.index(move[2])
         rating = 0
         orig_visible = self.get_visible_cards(orig)
         orig_tail = self.find_suited_tail(orig_visible)
 
         dest_visible = self.get_visible_cards(dest)
-        if dest_visible[-1][1] == orig_tail[0][1]:
+        if len(dest_visible) == 0:
+            rating += 4
+        elif dest_visible[-1][1] == orig_tail[0][1]:
             # extending run
             rating += 2
         else:
             rating += 1
-        all_visible = [len(self.get_visible_cards(i)) for i in range(10)]
-        all_cards = [len(self.piles[i]) for i in range(10)]
+        all_visible = [len(self.get_visible_cards(2*i + 1)) for i in range(10)]
+        all_cards = [len(self.piles[2*i]) + len(self.piles[2*i+1]) for i in range(10)]
         num_blank_cols = sum([all_visible[i] == 0 for i in range(10)])
         if howmany == len(self.piles[orig]):
             if num_blank_cols == 0:
@@ -81,9 +82,9 @@ class SpiderEngine:
 
 
     def move_sequence(self, mv_string):
-        from_idx = HEXNUM.index(mv_string[0])
-        to_idx = HEXNUM.index(mv_string[1])
-        howmany = HEXNUM.index(mv_string[2])
+        from_idx = sc.COLNUM.index(mv_string[0])
+        to_idx = sc.COLNUM.index(mv_string[1])
+        howmany = sc.HEXNUM.index(mv_string[2])
         pile_from = self.piles[from_idx]
         pile_to = self.piles[to_idx]
         visible = self.get_visible_cards(from_idx)

@@ -5,7 +5,7 @@ import numpy as np
 import random
 import zlib
 from spider_engine import SpiderEngine
-#import spider_game_tree as sgt
+from spider_game_tree import GameTree
 import spider_constants as sc
 
 
@@ -41,16 +41,23 @@ class SpiderDisplay:
     def draw_piles(self, piles):
         self.screen.fill((0, 128, 0))  # green background like a card table
 
-        for i, pile in enumerate(piles):
-            x = sc.MARGIN + i * sc.PILE_SPACING_X
-            for j, card in enumerate(pile):
-                y = sc.MARGIN + j * sc.CARD_SPACING_Y
+        for col in range(len(piles) // 2):  # 10 columns expected
+            x = sc.MARGIN + col * sc.PILE_SPACING_X
+            y = sc.MARGIN
+
+            # Draw face-down cards from even index
+            for card in piles[2 * col]:
+                self.screen.blit(self.card_images['BACK-SIDE'], (x, y))
+                y += sc.CARD_SPACING_Y
+
+            # Draw face-up cards from odd index
+            for card in piles[2 * col + 1]:
                 card_str = card.upper()
                 if card_str in self.card_images:
                     self.screen.blit(self.card_images[card_str], (x, y))
                 else:
-                    pygame.draw.rect(self.screen, (255, 0, 0), (x, y, sc.CARD_WIDTH, sc.CARD_HEIGHT))
-                    print(f"Missing image for card: {card_str}")
+                    print(f"Missing image for card {card_str}")
+                y += sc.CARD_SPACING_Y
 
         pygame.display.flip()
         self.clock.tick(30)
@@ -83,27 +90,26 @@ class SpiderDisplay:
             with open(dfilename, 'r') as f:
                 full_deck = eval(f.read())
     
-        piles_real = [[] for _ in range(10)]
-        piles_display = [[] for _ in range(10)]
+        piles = []
     
-        for i in range(10):
-            num_cards = 6 if i < 4 else 5
-            for j in range(num_cards):
+        i = 0
+        sequence = [5,1,5,1,5,1,5,1,4,1,4,1,4,1,4,1,4,1,4,1]
+        build = []
+        for j in sequence:
+            while len(build) != j:
                 card = full_deck.pop()
-                piles_real[i].append(card)
-                if j == num_cards - 1:
-                    piles_display[i].append(card)  # face-up
-                else:
-                    piles_display[i].append("XX")  # face-down
-    
-        return [np.array(pile) for pile in piles_display], full_deck, piles_real
+                build.append(card)
+
+            piles.append(build)
+            build = []
+        return [np.array(pile) for pile in piles], full_deck
 
 
     def xeqt(self,deck=None):
-        piles, stock, piles_real = self.create_initial_deal(deck)
+        piles, stock = self.create_initial_deal(deck)
         engine = SpiderEngine(piles)
         display = SpiderDisplay()
-        #gt = sgt.GameTree(piles_real)
+        #gt = GameTree([list(p) for p in piles_real])
         mq = []
     
         display.draw_piles([list(p) for p in engine.piles])
@@ -122,6 +128,8 @@ class SpiderDisplay:
                     continue
                 else:
                     print("Stock empty — no more possible moves.")
+                    #gt.to_pickle("pckls/last_game_tree.pkl")
+                    print("Game tree saved to last_game_tree.pkl")
                     break
             print(20*'*')
             print(f'Moves input: {moves}')
@@ -148,15 +156,16 @@ class SpiderDisplay:
             engine.move_sequence(move)
     
 
-            from_idx = sc.HEXNUM.index(move[0])
-            pile = engine.piles[from_idx]
-            if len(pile) > 0 and pile[-1] == "XX":
-                for i in range(len(pile) - 1, -1, -1):
-                    if pile[i] == "XX":
-                        pile[i] = piles_real[from_idx][i]  # reveal the true card
-                        break
-    
+            from_idx = sc.COLNUM.index(move[0])
+            if len(engine.piles[from_idx]) == 0 and len(engine.piles[from_idx - 1]) != 0:
+                engine.piles[from_idx] = np.append(engine.piles[from_idx],engine.piles[from_idx - 1][-1])
+                engine.piles[from_idx-1] = engine.piles[from_idx - 1][:-1]
+
+
             display.draw_piles(engine.piles)
+            # Save this move/state to game tree
+            #gt.expand_with_move(move, [list(p) for p in piles_real])
+
             display.wait_for_key()
             pass
 
