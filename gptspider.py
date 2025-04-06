@@ -129,7 +129,7 @@ class SpiderDisplay:
                 else:
 
                     print("Stock empty — no more possible moves.")
-                    fname = 'pckls/' +    str(int((dt.datetime.now() - sc.BASE_DATE).total_seconds()))+'.pkl'
+                    fname = 'pckls/' +    str(int((dt.datetime.now() - sc.BASE_DATE).microseconds))+'.pkl'
                     gt.to_pickle(fname)
                     print("Game tree saved to " + fname)
                     break
@@ -171,4 +171,4 @@ class SpiderDisplay:
 if __name__ == "__main__":
 
     sd = SpiderDisplay()
-    sd.xeqt( )
+    sd.xeqt('10696371'    )
