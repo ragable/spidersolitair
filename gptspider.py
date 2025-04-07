@@ -23,6 +23,7 @@ class SpiderDisplay:
 
         self.clock = pygame.time.Clock()
         self.card_images = self.load_card_images()
+        self.dfilename = None
 
         # Support for a renamed back image
         if "XX" not in self.card_images and "BACK-SIDE" in self.card_images:
@@ -79,12 +80,12 @@ class SpiderDisplay:
             random.shuffle(full_deck)
             ba = bytearray([sc.STANDARD_DECK.index(card) for card in full_deck])
             crc = zlib.crc32(ba)
-            dfilename = 'decks/' + hex(crc)[2:] + '.txt'
-            with open(dfilename, 'w') as f:
+            self.dfilename = 'decks/' + hex(crc)[2:] + '.txt'
+            with open(self.dfilename, 'w') as f:
                 f.write(str(full_deck))
         else:
-            dfilename = 'decks/' + deckname + '.txt'
-            with open(dfilename, 'r') as f:
+            self.dfilename = 'decks/' + deckname + '.txt'
+            with open(self.dfilename, 'r') as f:
                 full_deck = eval(f.read())
     
         piles = []
@@ -114,18 +115,22 @@ class SpiderDisplay:
         while True:
             moves = engine.get_all_possible_moves()
             if not moves or (len(mq) != len(set(mq))):
+                if not moves:
+                    print('No moves')
+                if len(mq) != len(set(mq)):
+                    print('Cycle')
                 if len(stock) >= 10:
                     for i in range(10):
                         card = stock.pop()
                         engine.piles[2*i + 1] = np.append(engine.piles[2*i + 1], card)
                     display.draw_piles(engine.piles)
-                    display.wait_for_key()
                     mq =[]
                     continue
                 else:
 
                     print("Stock empty — no more possible moves.")
-                    fname = 'pckls/' +    str(int((dt.datetime.now() - sc.BASE_DATE).microseconds))+'.pkl'
+                    dealpart = self.dfilename.split('/')[1].split('.')[0]
+                    fname = 'pckls/' +    str(int((dt.datetime.now() - sc.BASE_DATE).microseconds))+ '-' + dealpart + '.pkl'
                     gt.to_pickle(fname)
                     print("Game tree saved to " + fname)
                     break
