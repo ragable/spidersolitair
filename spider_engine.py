@@ -1,6 +1,7 @@
 # spider_engine.py
 import numpy as np
 import spider_constants as sc
+import zlib
 
 class SpiderEngine:
     def __init__(self, piles):
@@ -69,6 +70,15 @@ class SpiderEngine:
                 rating += 5
         return rating
 
+
+    def calc_pile_hash(self,piles):
+        flat = []
+        for lst in piles:
+            for subelement in lst:
+                flat.append(sc.STANDARD_DECK.index(subelement))
+        ba = bytearray([item for item in flat])
+        crc = hex(zlib.crc32(ba))
+        return crc[2:]
 
 
 

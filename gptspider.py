@@ -8,6 +8,7 @@ from spider_engine import SpiderEngine
 from spider_game_tree import GameTree
 import spider_constants as sc
 import datetime as dt
+import time
 
 
 class SpiderDisplay:
@@ -64,12 +65,7 @@ class SpiderDisplay:
         self.clock.tick(30)
 
     def wait_for_key(self):
-        while True:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.quit()
-                if event.type == pygame.KEYDOWN:
-                    return
+        time.sleep(2)
 
     def quit(self):
         pygame.quit()
@@ -114,10 +110,10 @@ class SpiderDisplay:
     
         display.draw_piles([list(p) for p in engine.piles])
         display.wait_for_key()
-    
+        moveno = 1
         while True:
             moves = engine.get_all_possible_moves()
-            if not moves or (len(mq) != len(set(mq))and (mq[-1] != mq[-2])):
+            if not moves or (len(mq) != len(set(mq))):
                 if len(stock) >= 10:
                     for i in range(10):
                         card = stock.pop()
@@ -145,10 +141,11 @@ class SpiderDisplay:
                 if rate == high:
                     results.append(moves[i])
             move = random.choice(results)
-            mq.append(move)
+            mq.append(engine.calc_pile_hash([list(pile) for pile in engine.piles]))
             if len(mq) > 5:
                 mq = mq[-5:]
-            print(str(mq))
+            print(moveno,mq)
+            moveno+=1
             engine.move_sequence(move)
     
 
