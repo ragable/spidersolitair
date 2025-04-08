@@ -25,10 +25,6 @@ class SpiderDisplay:
         self.card_images = self.load_card_images()
         self.dfilename = None
 
-        # Support for a renamed back image
-        if "XX" not in self.card_images and "BACK-SIDE" in self.card_images:
-            self.card_images["XX"] = self.card_images["BACK-SIDE"]
-
 
     def load_card_images(self):
         card_images = {}
@@ -65,7 +61,7 @@ class SpiderDisplay:
         pygame.display.flip()
         self.clock.tick(30)
 
-    def wait_for_key(self):
+    def delay_play(self):
         time.sleep(2)
 
     def quit(self):
@@ -110,7 +106,7 @@ class SpiderDisplay:
         mq = []
     
         display.draw_piles([list(p) for p in engine.piles])
-        display.wait_for_key()
+        display.delay_play()
         moveno = 1
         while True:
             moves = engine.get_all_possible_moves()
@@ -164,13 +160,13 @@ class SpiderDisplay:
             # Save this move/state to game tree
             gt.expand_with_move(move, [list(p) for p in piles])
 
-            display.wait_for_key()
-            pass
+            display.delay_play()
 
         display.quit()
 
 
 if __name__ == "__main__":
-
     sd = SpiderDisplay()
-    sd.xeqt('10696371'    )
+    #sd.xeqt('10696371'    )
+    g = GameTree.from_pickle('pckls/516664-10696371.pkl')
+    pass

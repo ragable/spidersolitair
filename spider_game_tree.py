@@ -15,7 +15,7 @@ class TreeNode:
                 flatdisp.append(sc.STANDARD_DECK.index(subitem))
         ba = bytearray([crd for crd in flatdisp])
         self.crc_id = hex(zlib.crc32(ba))[2:]
-        pass
+
 
     def add_child(self, child_node):
         self.children.append(child_node)
@@ -44,8 +44,4 @@ class GameTree:
         with open(path, "wb") as f:
             pickle.dump(self, f)
 
-    @staticmethod
-    def from_pickle(path):
-        import pickle
-        with open(path, "rb") as f:
-            return pickle.load(f)
+
