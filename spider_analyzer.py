@@ -15,21 +15,15 @@ class SpiderAnalyzer:
     def __init__(self, pfile):
         pname = 'pckls/' + pfile + '.pkl'
         self.gtree = self.from_pickle(pname)
-        self.engine = SpiderEngine(self.gtree.root.state)
+        self.current_node = 0
+        self.engine = SpiderEngine(self.gtree.nodes[self.current_node].state)
         self.display = SpiderDisplay()
-        self.thisnode = self.gtree.root
 
     def process(self):
         while True:
-            self.display.draw_piles(self.thisnode.state)
+            self.display.draw_piles(self.gtree.nodes[self.current_node].state)
             time.sleep(3)
-            self.thisnode = self.thisnode.children[0]
-
-
-
-
-
-
+            self.current_node = self.gtree.nodes[self.current_node].children[0]
 
 
     @staticmethod
@@ -40,6 +34,5 @@ class SpiderAnalyzer:
 
 
 if __name__ == '__main__':
-    sp = SpiderAnalyzer('516664-10696371')
+    sp = SpiderAnalyzer('257835-8f982524')
     sp.process()
-    pass

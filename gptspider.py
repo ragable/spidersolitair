@@ -167,6 +167,4 @@ class SpiderDisplay:
 
 if __name__ == "__main__":
     sd = SpiderDisplay()
-    #sd.xeqt('10696371'    )
-    g = GameTree.from_pickle('pckls/516664-10696371.pkl')
-    pass
+    sd.xeqt()
