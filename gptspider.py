@@ -106,7 +106,6 @@ class SpiderDisplay:
         piles, stock = self.create_initial_deal(deck)
         engine = SpiderEngine(piles)
         display = SpiderDisplay()
-        gt = GameTree([list(p) for p in piles])
         mq = []
     
         display.draw_piles([list(p) for p in engine.piles])
@@ -131,7 +130,6 @@ class SpiderDisplay:
                     print("Stock empty — no more possible moves.")
                     dealpart = self.dfilename.split('/')[1].split('.')[0]
                     fname = 'pckls/' +    str(int((dt.datetime.now() - sc.BASE_DATE).microseconds))+ '-' + dealpart + '.pkl'
-                    gt.to_pickle(fname)
                     print("Game tree saved to " + fname)
                     pilesz = [len(item) for item in engine.piles]
                     pcount = sum(pilesz)
@@ -167,8 +165,6 @@ class SpiderDisplay:
 
 
             display.draw_piles(engine.piles)
-            # Save this move/state to game tree
-            gt.expand_with_move(move, [list(p) for p in piles])
 
             display.delay_play()
 
