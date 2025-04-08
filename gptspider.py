@@ -61,12 +61,16 @@ class SpiderDisplay:
         pygame.display.flip()
         self.clock.tick(30)
 
-    def delay_play(self):
+    @staticmethod
+    def delay_play():
         time.sleep(2)
 
-    def quit(self):
+    @staticmethod
+    def quit():
         pygame.quit()
         sys.exit()
+
+
 
     def create_initial_deal(self,deckname):
     
@@ -129,6 +133,12 @@ class SpiderDisplay:
                     fname = 'pckls/' +    str(int((dt.datetime.now() - sc.BASE_DATE).microseconds))+ '-' + dealpart + '.pkl'
                     gt.to_pickle(fname)
                     print("Game tree saved to " + fname)
+                    pilesz = [len(item) for item in engine.piles]
+                    pcount = sum(pilesz)
+                    if sum(pilesz) == 0:
+                        print('CONGRATULATIONS - YOU WON A SPIDER GAME!')
+                    else:
+                        print(f'Sorry - you lost - there were {pcount} cards left on the table.')
                     break
             move_ranks = []
             for move in moves:

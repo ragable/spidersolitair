@@ -1,12 +1,5 @@
-import pygame
-import os
-import sys
-import numpy as np
 from spider_engine import SpiderEngine
-from spider_game_tree import GameTree
 from gptspider import SpiderDisplay
-import spider_constants as sc
-import datetime as dt
 import time
 
 

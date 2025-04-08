@@ -6,9 +6,10 @@ import zlib
 class SpiderEngine:
     def __init__(self, piles):
         self.piles = piles
+        self.finished_suits_pds = []
 
-
-    def find_suited_tail(self, cards):
+    @staticmethod
+    def find_suited_tail(cards):
         """
         Find the longest suited descending tail from the end of the visible cards.
         """
@@ -32,6 +33,12 @@ class SpiderEngine:
             tail = self.find_suited_tail(visible)
             if not tail:
                 continue
+            if len(tail) == 13: # completed a suit
+                suit = tail[-1][1]
+                del self.piles[2*from_idx + 1][-13:]
+                self.finished_suits_pds.append([suit,2*from_idx + 1])
+                continue
+
             for to_idx in range(10):
                 if from_idx == to_idx:
                     continue
@@ -43,6 +50,12 @@ class SpiderEngine:
                     if top_card != "XX" and sc.RANKS.index(top_card[0]) == sc.RANKS.index(tail[0][0]) + 1:
                         moves.append(sc.COLNUM[2*from_idx + 1] + sc.COLNUM[2*to_idx + 1] + sc.HEXNUM[len(tail)])
         return moves
+
+    def push_finished_suit(self, suit, pile):
+        self.finished_suits_pds.append([suit, pile])
+
+    def pop_finished_suit(self):
+        return self.finished_suits_pds.pop()
 
     def rate_move(self, move):
         orig = sc.COLNUM.index(move[0])
@@ -61,7 +74,6 @@ class SpiderEngine:
         else:
             rating += 1
         all_visible = [len(self.piles[2*i + 1]) for i in range(10)]
-        all_cards = [len(self.piles[2*i]) + len(self.piles[2*i+1]) for i in range(10)]
         num_blank_cols = sum([all_visible[i] == 0 for i in range(10)])
         if howmany == len(self.piles[orig]):
             if num_blank_cols == 0:
@@ -70,8 +82,8 @@ class SpiderEngine:
                 rating += 5
         return rating
 
-
-    def calc_pile_hash(self,piles):
+    @staticmethod
+    def calc_pile_hash(piles):
         flat = []
         for lst in piles:
             for subelement in lst:
@@ -103,7 +115,8 @@ class SpiderEngine:
 
         return True
 
-    def is_suited_descending_sequence(self, seq):
+    @staticmethod
+    def is_suited_descending_sequence(seq):
         if len(seq) < 2:
             return True
         try:

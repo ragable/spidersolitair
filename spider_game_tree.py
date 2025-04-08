@@ -33,7 +33,7 @@ class TreeNode:
 
 
 class GameTree:
-    def __init__(self, initial_state):
+    def __init__(self):
         self.nodes = []
         self.current = None
 
