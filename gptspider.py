@@ -1,15 +1,91 @@
 import pygame
 import os
-import sys
 import numpy as np
 import random
 import zlib
 from spider_engine import SpiderEngine
-from spider_game_tree import GameTree
 import spider_constants as sc
 import datetime as dt
 import time
 
+class Diagnostics:
+    def __init__(self):
+        self.max_suited_run_length = 0
+        self.max_unsuited_run_length = 0
+        self.single_empty_columns_in_effect = False
+        self.multi_empty_columns_in_effect = False
+        self.mode = sc.NORMAL
+
+
+    def count(self,lists):
+        connecteds = []
+        for lst in lists:
+            if len(lst) == 0:
+                connecteds.append('')
+            elif len(lst) == 1:
+                connecteds.append(lst[0])
+            else:
+                ziplist = list(zip(lst,lst[1:]))
+                relations = []
+                for item in ziplist:
+                    if item[0][1] == item[1][1] and sc.RANKS.index(item[0][0]) == sc.RANKS.index(item[1][0]) + 1:
+                        relations.append('*')
+                    elif sc.RANKS.index(item[0][0]) == sc.RANKS.index(item[1][0]) + 1:
+                        relations.append('#')
+                    else:
+                        relations.append('-')
+                strng = ''
+                for i,item in enumerate(lst):
+                    strng += item
+                    if i >= len(relations):
+                        break
+                    strng += relations[i]
+                connecteds.append(strng)
+
+        suited = []
+        unsuited = []
+        for connected in connecteds:
+            split1 = connected.split('-')
+            for item in split1:
+                if '*' in item:
+                    suited.append(len(item.split('*')))
+                elif '#' in item:
+                    unsuited.append(len(item.split('#')))
+        largest = 0
+        for item in suited:
+            if item > largest:
+                largest = item
+        if largest > self.max_suited_run_length:
+            self.max_suited_run_length = largest
+        largest = 0
+        for item in unsuited:
+            if item > largest:
+                largest = item
+        if largest > self.max_unsuited_run_length:
+            self.max_unsuited_run_length = largest
+
+
+    def collect(self, lists):
+        relevant_lists = []
+        for i in range(10):
+            relevant_lists.append(lists[2*i+1])
+
+        lengths = [len(lst) for lst in relevant_lists]
+        empties = sum([item == 0 for item in lengths])
+        if empties == 0:
+            self.single_empty_columns_in_effect = False
+            self.multi_empty_columns_in_effect = False
+            self.mode = sc.NORMAL
+        elif empties == 1:
+            self.single_empty_columns_in_effect = True
+            self.multi_empty_columns_in_effect = False
+            self.mode = sc.SINGLE
+        else:
+            self.single_empty_columns_in_effect = False
+            self.multi_empty_columns_in_effect = True
+            self.mode = sc.MULTI
+        self.count(relevant_lists)
+        pass
 
 class SpiderDisplay:
     def __init__(self):
@@ -24,6 +100,11 @@ class SpiderDisplay:
         self.clock = pygame.time.Clock()
         self.card_images = self.load_card_images()
         self.dfilename = None
+        self.move_list = []
+        self.game_state = sc.FORWARD
+        self.game_strategy = sc.NORMAL
+        self.moveno = 1
+        self.diags = Diagnostics()
 
 
     def load_card_images(self):
@@ -63,12 +144,12 @@ class SpiderDisplay:
 
     @staticmethod
     def delay_play():
-        time.sleep(2)
+        time.sleep(0.05)
 
     @staticmethod
     def quit():
         pygame.quit()
-        sys.exit()
+        #sys.exit()
 
 
 
@@ -110,14 +191,11 @@ class SpiderDisplay:
     
         display.draw_piles([list(p) for p in engine.piles])
         display.delay_play()
-        moveno = 1
         while True:
+
             moves = engine.get_all_possible_moves()
-            if not moves or (len(mq) != len(set(mq))):
-                if not moves:
-                    print('No moves')
-                if len(mq) != len(set(mq)):
-                    print('Cycle')
+            if not moves or len(mq) != len(set(mq)):
+                self.move_list.append('K')
                 if len(stock) >= 10:
                     for i in range(10):
                         card = stock.pop()
@@ -128,9 +206,13 @@ class SpiderDisplay:
                 else:
 
                     print("Stock empty — no more possible moves.")
+                    print(f"MAX SUITED: {self.diags.max_suited_run_length}")
+                    print(f"MAX UNSUITED:{self.diags.max_unsuited_run_length}")
                     dealpart = self.dfilename.split('/')[1].split('.')[0]
-                    fname = 'pckls/' +    str(int((dt.datetime.now() - sc.BASE_DATE).microseconds))+ '-' + dealpart + '.pkl'
-                    print("Game tree saved to " + fname)
+                    fname = 'movefiles/' +    str(int((dt.datetime.now() - sc.BASE_DATE).microseconds))+ '-' + dealpart + '.txt'
+                    print("Move file saved to " + fname)
+                    with open(fname, 'w') as f:
+                        f.write(str(self.move_list))
                     pilesz = [len(item) for item in engine.piles]
                     pcount = sum(pilesz)
                     if sum(pilesz) == 0:
@@ -149,13 +231,20 @@ class SpiderDisplay:
             for i,rate in enumerate(move_ranks):
                 if rate == high:
                     results.append(moves[i])
-            move = random.choice(results)
-            mq.append(engine.calc_pile_hash([list(pile) for pile in engine.piles]))
+
+
+            while True:
+                move = random.choice(results)
+                if move not in mq:
+                    mq.append(engine.calc_pile_hash([list(pile) for pile in engine.piles]))
+                    break
             if len(mq) > 5:
                 mq = mq[-5:]
-            print(moveno,mq)
-            moveno+=1
+            self.move_list.append(move)
+            print(self.moveno,mq)
+            self.moveno+=1
             engine.move_sequence(move)
+
     
 
             from_idx = sc.COLNUM.index(move[0])
@@ -163,7 +252,7 @@ class SpiderDisplay:
                 engine.piles[from_idx] = np.append(engine.piles[from_idx],engine.piles[from_idx - 1][-1])
                 engine.piles[from_idx-1] = engine.piles[from_idx - 1][:-1]
 
-
+            self.diags.collect([list(pile) for pile in engine.piles])
             display.draw_piles(engine.piles)
 
             display.delay_play()
@@ -172,5 +261,7 @@ class SpiderDisplay:
 
 
 if __name__ == "__main__":
-    sd = SpiderDisplay()
-    sd.xeqt()
+
+    for i in range(100):
+        sd = SpiderDisplay()
+        sd.xeqt('faab0829')

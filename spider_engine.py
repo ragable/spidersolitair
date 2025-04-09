@@ -35,7 +35,8 @@ class SpiderEngine:
                 continue
             if len(tail) == 13: # completed a suit
                 suit = tail[-1][1]
-                del self.piles[2*from_idx + 1][-13:]
+                n = 2*from_idx + 1
+                self.piles[n] = self.piles[n][:-13]
                 self.finished_suits_pds.append([suit,2*from_idx + 1])
                 continue
 
