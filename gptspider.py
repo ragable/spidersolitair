@@ -101,8 +101,7 @@ class SpiderDisplay:
         self.card_images = self.load_card_images()
         self.dfilename = None
         self.move_list = []
-        self.game_state = sc.FORWARD
-        self.game_strategy = sc.NORMAL
+
         self.moveno = 1
         self.diags = Diagnostics()
 
@@ -192,9 +191,8 @@ class SpiderDisplay:
         display.draw_piles([list(p) for p in engine.piles])
         display.delay_play()
         while True:
-
-            moves = engine.get_all_possible_moves()
-            if not moves or len(mq) != len(set(mq)):
+            engine.calculate_goals(engine.piles)
+            if not engine.spider_goal_queue or len(engine.mq) != len(set(engine.mq)):
                 self.move_list.append('K')
                 if len(stock) >= 10:
                     for i in range(10):
@@ -220,34 +218,15 @@ class SpiderDisplay:
                     else:
                         print(f'Sorry - you lost - there were {pcount} cards left on the table.')
                     break
-            move_ranks = []
-            for move in moves:
-                move_ranks.append(engine.rate_move(move))
-            high = 0
-            for rate in move_ranks:
-                if rate > high:
-                    high = rate
-            results = []
-            for i,rate in enumerate(move_ranks):
-                if rate == high:
-                    results.append(moves[i])
 
-
-            while True:
-                move = random.choice(results)
-                if move not in mq:
-                    mq.append(engine.calc_pile_hash([list(pile) for pile in engine.piles]))
-                    break
-            if len(mq) > 5:
-                mq = mq[-5:]
-            self.move_list.append(move)
-            print(self.moveno,mq)
+            print(self.moveno)
             self.moveno+=1
-            engine.move_sequence(move)
+            chosen_move = engine.spider_goal_queue.pop(0)
+            engine.move_sequence(chosen_move)
 
     
 
-            from_idx = sc.COLNUM.index(move[0])
+            from_idx = sc.COLNUM.index(chosen_move[0])
             if len(engine.piles[from_idx]) == 0 and len(engine.piles[from_idx - 1]) != 0:
                 engine.piles[from_idx] = np.append(engine.piles[from_idx],engine.piles[from_idx - 1][-1])
                 engine.piles[from_idx-1] = engine.piles[from_idx - 1][:-1]

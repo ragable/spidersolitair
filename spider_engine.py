@@ -2,11 +2,18 @@
 import numpy as np
 import spider_constants as sc
 import zlib
+import random
+
+
 
 class SpiderEngine:
     def __init__(self, piles):
         self.piles = piles
         self.finished_suits_pds = []
+        self.spider_goal_queue = []
+        self.game_state = sc.FORWARD
+        self.game_strategy = sc.NORMAL
+        self.mq = []
 
     @staticmethod
     def find_suited_tail(cards):
@@ -126,3 +133,65 @@ class SpiderEngine:
         except (KeyError, IndexError, ValueError):
             return False
         return all(s == suits[0] for s in suits) and all(values[i] == values[i+1] + 1 for i in range(len(values) - 1))
+
+    def calc_indices(self, card_ranks, standard):
+        ndx_lists = []
+        for rank in card_ranks:
+            temp = [rank == item for item in standard]
+            ndxes = list(zip(temp,range(10)))
+            nlist = [item[1] for item in ndxes if item[0]]
+            ndx_lists.append(nlist)
+        return ndx_lists
+
+    def calculate_goals(self,piles):
+        upcards = [piles[2*i+1] for i in range(10)]
+        tails = [self.find_suited_tail(ucards) for ucards in upcards]
+        attached_to_targets = [item[0][0] if item else None for item in tails]
+        atts = []
+        for item in attached_to_targets:
+            if item and item != 'A':
+                target = sc.RANKS[sc.RANKS.index(item) - 1]
+                for subitem in upcards:
+                    subitem_ranks = [card[0] for card in subitem]
+                    if target in subitem_ranks:
+                        atts.append(target)
+                        break
+        predecessors = list(set(atts))
+        predecessors.sort()
+        successors = [sc.RANKS[sc.RANKS.index(item) + 1] for item in atts]
+        successors.sort()
+        succ_list_ndxes = self.calc_indices(successors,attached_to_targets)
+        pred_list_ndxes = self.calc_indices(predecessors,attached_to_targets)
+
+        movs = []
+        for i in range(len(pred_list_ndxes)):
+            for item in pred_list_ndxes[i]:
+                for sub_item in succ_list_ndxes[i]:
+                    movs.append([sc.COLNUM[2 * item + 1]+sc.COLNUM[2 * sub_item + 1] + sc.HEXNUM[len(tails[item])]])
+
+        if self.game_strategy == sc.NORMAL:
+            move_ranks = []
+            for move in movs:
+                move_ranks.append(self.rate_move(move))
+            high = 0
+            for rate in move_ranks:
+                if rate > high:
+                    high = rate
+            results = []
+            for i, rate in enumerate(move_ranks):
+                if rate == high:
+                    results.append(movs[i])
+
+            while True:
+                move = random.choice(results)
+                if move not in self.mq:
+                    self.mq.append(self.calc_pile_hash([list(pile) for pile in self.piles]))
+                    break
+            if len(self.mq) > 5:
+                self.mq = self.mq[-5:]
+            self.spider_goal_queue.append(move)
+        elif self.game_strategy == sc.SINGLE:
+            pass
+        elif self.game_strategy == sc.MULTI:
+            pass
+
