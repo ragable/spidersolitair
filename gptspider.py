@@ -91,17 +91,14 @@ class SpiderDisplay:
     def __init__(self):
         pygame.init()
         self.card_folder = "img/cards/"
-
         window_width = sc.MARGIN * 2 + sc.PILE_SPACING_X * 10
         window_height = sc.MARGIN * 2 + sc.CARD_SPACING_Y * 20 + sc.CARD_HEIGHT
         self.screen = pygame.display.set_mode((window_width, window_height))
         pygame.display.set_caption("Spider Solitaire Display")
-
         self.clock = pygame.time.Clock()
         self.card_images = self.load_card_images()
         self.dfilename = None
         self.move_list = []
-
         self.moveno = 1
         self.diags = Diagnostics()
 
@@ -117,20 +114,20 @@ class SpiderDisplay:
                 card_images[name.upper()] = image
         return card_images
 
-    def draw_piles(self, piles):
+    def draw_piles(self, visual_piles):
         self.screen.fill((0, 128, 0))  # green background like a card table
 
-        for col in range(len(piles) // 2):  # 10 columns expected
+        for col in range(len(visual_piles) // 2):  # 10 columns expected
             x = sc.MARGIN + col * sc.PILE_SPACING_X
             y = sc.MARGIN
 
             # Draw face-down cards from even index
-            for _ in piles[2 * col]:
+            for _ in visual_piles[2 * col]:
                 self.screen.blit(self.card_images['BACK-SIDE'], (x, y))
                 y += sc.CARD_SPACING_Y
 
             # Draw face-up cards from odd index
-            for card in piles[2 * col + 1]:
+            for card in visual_piles[2 * col + 1]:
                 card_str = card.upper()
                 if card_str in self.card_images:
                     self.screen.blit(self.card_images[card_str], (x, y))
@@ -168,7 +165,7 @@ class SpiderDisplay:
             with open(self.dfilename, 'r') as f:
                 full_deck = eval(f.read())
     
-        piles = []
+        tableau_piles = []
 
         sequence = [5,1,5,1,5,1,5,1,4,1,4,1,4,1,4,1,4,1,4,1]
         build = []
@@ -177,16 +174,16 @@ class SpiderDisplay:
                 card = full_deck.pop()
                 build.append(card)
 
-            piles.append(build)
+            tableau_piles.append(build)
             build = []
-        return [np.array(pile) for pile in piles], full_deck
+        return [np.array(pile) for pile in tableau_piles], full_deck
 
 
     def xeqt(self,deck=None):
-        piles, stock = self.create_initial_deal(deck)
-        engine = SpiderEngine(piles)
+        play_piles, stock = self.create_initial_deal(deck)
+        engine = SpiderEngine(play_piles)
         display = SpiderDisplay()
-        mq = []
+        engine.mq = []
     
         display.draw_piles([list(p) for p in engine.piles])
         display.delay_play()
@@ -199,8 +196,8 @@ class SpiderDisplay:
                         card = stock.pop()
                         engine.piles[2*i + 1] = np.append(engine.piles[2*i + 1], card)
                     display.draw_piles(engine.piles)
-                    mq =[]
-                    continue
+                    engine.mq =[]
+                    #continue
                 else:
 
                     print("Stock empty — no more possible moves.")
@@ -211,9 +208,9 @@ class SpiderDisplay:
                     print("Move file saved to " + fname)
                     with open(fname, 'w') as f:
                         f.write(str(self.move_list))
-                    pilesz = [len(item) for item in engine.piles]
-                    pcount = sum(pilesz)
-                    if sum(pilesz) == 0:
+                    len_piles = [len(item) for item in engine.piles]
+                    pcount = sum(len_piles)
+                    if sum(len_piles) == 0:
                         print('CONGRATULATIONS - YOU WON A SPIDER GAME!')
                     else:
                         print(f'Sorry - you lost - there were {pcount} cards left on the table.')
@@ -221,20 +218,23 @@ class SpiderDisplay:
 
             print(self.moveno)
             self.moveno+=1
-            chosen_move = engine.spider_goal_queue.pop(0)
-            engine.move_sequence(chosen_move)
+            if engine.spider_goal_queue:
+                chosen_move = engine.spider_goal_queue.pop(0)
 
-    
+                engine.move_sequence(chosen_move)
 
-            from_idx = sc.COLNUM.index(chosen_move[0])
-            if len(engine.piles[from_idx]) == 0 and len(engine.piles[from_idx - 1]) != 0:
-                engine.piles[from_idx] = np.append(engine.piles[from_idx],engine.piles[from_idx - 1][-1])
-                engine.piles[from_idx-1] = engine.piles[from_idx - 1][:-1]
+                self.move_list.append(chosen_move)
 
-            self.diags.collect([list(pile) for pile in engine.piles])
-            display.draw_piles(engine.piles)
+                from_idx = sc.COLNUM.index(chosen_move[0])
+                if len(engine.piles[from_idx]) == 0 and len(engine.piles[from_idx - 1]) != 0:
+                    engine.piles[from_idx] = np.append(engine.piles[from_idx],engine.piles[from_idx - 1][-1])
+                    engine.piles[from_idx-1] = engine.piles[from_idx - 1][:-1]
 
-            display.delay_play()
+                self.diags.collect([list(pile) for pile in engine.piles])
+                display.draw_piles(engine.piles)
+                display.delay_play()
+            else:
+                continue
 
         display.quit()
 

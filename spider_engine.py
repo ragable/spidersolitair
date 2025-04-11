@@ -3,7 +3,7 @@ import numpy as np
 import spider_constants as sc
 import zlib
 import random
-
+import copy as cp
 
 
 class SpiderEngine:
@@ -118,6 +118,10 @@ class SpiderEngine:
         if not self.is_suited_descending_sequence(move_cards):
             return False
 
+        if len(list(pile_from[-howmany:])) > 0 and len(pile_to) > 0:
+            if sc.RANKS.index(list(pile_from[-howmany:])[0][0]) - sc.RANKS.index(pile_to[-1][0]) != -1:
+                pass
+            print(f'FROM: {list(pile_from[-howmany:])[0][0]} to {pile_to[-1][0]}')
         self.piles[from_idx] = np.array(list(pile_from[:-howmany]))
         self.piles[to_idx] = np.append(pile_to, move_cards)
 
@@ -133,8 +137,8 @@ class SpiderEngine:
         except (KeyError, IndexError, ValueError):
             return False
         return all(s == suits[0] for s in suits) and all(values[i] == values[i+1] + 1 for i in range(len(values) - 1))
-
-    def calc_indices(self, card_ranks, standard):
+    @staticmethod
+    def calc_indices(card_ranks, standard):
         ndx_lists = []
         for rank in card_ranks:
             temp = [rank == item for item in standard]
@@ -143,35 +147,33 @@ class SpiderEngine:
             ndx_lists.append(nlist)
         return ndx_lists
 
+
+
     def calculate_goals(self,piles):
+
         upcards = [piles[2*i+1] for i in range(10)]
         tails = [self.find_suited_tail(ucards) for ucards in upcards]
-        attached_to_targets = [item[0][0] if item else None for item in tails]
-        atts = []
-        for item in attached_to_targets:
-            if item and item != 'A':
-                target = sc.RANKS[sc.RANKS.index(item) - 1]
-                for subitem in upcards:
-                    subitem_ranks = [card[0] for card in subitem]
-                    if target in subitem_ranks:
-                        atts.append(target)
-                        break
-        predecessors = list(set(atts))
-        predecessors.sort()
-        successors = [sc.RANKS[sc.RANKS.index(item) + 1] for item in atts]
-        successors.sort()
-        succ_list_ndxes = self.calc_indices(successors,attached_to_targets)
-        pred_list_ndxes = self.calc_indices(predecessors,attached_to_targets)
+        moves = []
+        for i in range(len(tails)):
+            from_tail = tails[i]
+            if not from_tail:
+                continue
+            target_from = from_tail[0][0]
+            for j in range(len(tails)):
+                if i != j:
+                    to_tail = tails[j]
+                    if to_tail:
+                        target_to = to_tail[-1][0]
+                        if sc.RANKS.index(target_to) - sc.RANKS.index(target_from) == 1:
+                            move = sc.COLNUM[2*i+1] + sc.COLNUM[2*j+1] + sc.HEXNUM[len(tails[i])]
+                            moves.append(move)
+                    else:
+                        move = sc.COLNUM[2 * i + 1] + sc.COLNUM[2 * j + 1] + sc.HEXNUM[len(tails[i])]
+                        moves.append(move)
 
-        movs = []
-        for i in range(len(pred_list_ndxes)):
-            for item in pred_list_ndxes[i]:
-                for sub_item in succ_list_ndxes[i]:
-                    movs.append([sc.COLNUM[2 * item + 1]+sc.COLNUM[2 * sub_item + 1] + sc.HEXNUM[len(tails[item])]])
-
-        if self.game_strategy == sc.NORMAL:
+        if self.game_strategy == sc.NORMAL and moves:
             move_ranks = []
-            for move in movs:
+            for move in moves:
                 move_ranks.append(self.rate_move(move))
             high = 0
             for rate in move_ranks:
@@ -180,12 +182,12 @@ class SpiderEngine:
             results = []
             for i, rate in enumerate(move_ranks):
                 if rate == high:
-                    results.append(movs[i])
+                    results.append(moves[i])
 
             while True:
                 move = random.choice(results)
                 if move not in self.mq:
-                    self.mq.append(self.calc_pile_hash([list(pile) for pile in self.piles]))
+                    self.mq.append(self.calc_pile_hash([list(pile) for pile in piles]))
                     break
             if len(self.mq) > 5:
                 self.mq = self.mq[-5:]
