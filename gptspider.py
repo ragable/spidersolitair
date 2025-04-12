@@ -168,8 +168,8 @@ class SpiderDisplay:
         self.clock.tick(30)
 
     @staticmethod
-    def delay_play():
-        time.sleep(0.05)
+    def delay_play(t):
+        time.sleep(t)
 
     @staticmethod
     def quit():
@@ -215,11 +215,12 @@ class SpiderDisplay:
         engine.mq = []
     
         display.draw_piles([list(p) for p in engine.piles])
-        display.delay_play()
+
         while True:
             engine.calculate_goals(engine.piles)
             if not engine.spider_goal_queue or len(engine.mq) != len(set(engine.mq)):
-                engine.spider_goal_queue = []
+                engine.spider_goal_queue = []   # prevents problems when it's a cycle
+                                                # that caused the redeal.
                 self.move_list.append('L')
                 if len(stock) >= 10:
                     for i in range(10):
@@ -232,6 +233,8 @@ class SpiderDisplay:
                     print(50*'*')
                     print(f'No. of moves {self.moveno}')
                     print(f"MAX SUITED: {self.diags.max_suited_run_length}")
+                    if self.diags.max_suited_run_length >= 9:
+                        self.delay_play(10.0)
                     dealpart = self.dfilename.split('/')[1].split('.')[0]
                     fname = 'movefiles/' +    str(int((dt.datetime.now() - sc.BASE_DATE).microseconds))+ '-' + dealpart + '.txt'
                     print("Move file saved to " + fname)
@@ -261,7 +264,7 @@ class SpiderDisplay:
 
                 self.diags.collect([list(pile) for pile in engine.piles])
                 display.draw_piles(engine.piles)
-                display.delay_play()
+                display.delay_play(0)
             else:
                 continue
 
@@ -272,4 +275,4 @@ if __name__ == "__main__":
 
     for i in range(100):
         sd = SpiderDisplay()
-        sd.xeqt('faab0829')
+        sd.xeqt('65403372')
