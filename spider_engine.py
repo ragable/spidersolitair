@@ -33,37 +33,7 @@ class SpiderEngine:
             tail.append(prev)
         return list(reversed(tail))
 
-    def get_all_possible_moves(self):
-        moves = []
-        for from_idx in range(10):
-            visible = self.piles[2*from_idx + 1] #self.get_visible_cards(from_idx)
-            tail = self.find_suited_tail(visible)
-            if not tail:
-                continue
-            if len(tail) == 13: # completed a suit
-                suit = tail[-1][1]
-                n = 2*from_idx + 1
-                self.piles[n] = self.piles[n][:-13]
-                self.finished_suits_pds.append([suit,2*from_idx + 1])
-                continue
 
-            for to_idx in range(10):
-                if from_idx == to_idx:
-                    continue
-                dest_pile = self.piles[2*to_idx + 1]
-                if len(dest_pile) == 0:
-                    moves.append( sc.COLNUM[2*from_idx + 1] + sc.COLNUM[2*to_idx + 1] + sc.HEXNUM[len(tail)])
-                else:
-                    top_card = dest_pile[-1]
-                    if top_card != "XX" and sc.RANKS.index(top_card[0]) == sc.RANKS.index(tail[0][0]) + 1:
-                        moves.append(sc.COLNUM[2*from_idx + 1] + sc.COLNUM[2*to_idx + 1] + sc.HEXNUM[len(tail)])
-        return moves
-
-    def push_finished_suit(self, suit, pile):
-        self.finished_suits_pds.append([suit, pile])
-
-    def pop_finished_suit(self):
-        return self.finished_suits_pds.pop()
 
     def rate_move(self, move):
         orig = sc.COLNUM.index(move[0])
@@ -118,10 +88,6 @@ class SpiderEngine:
         if not self.is_suited_descending_sequence(move_cards):
             return False
 
-        if len(list(pile_from[-howmany:])) > 0 and len(pile_to) > 0:
-            if sc.RANKS.index(list(pile_from[-howmany:])[0][0]) - sc.RANKS.index(pile_to[-1][0]) != -1:
-                pass
-            print(f'FROM: {list(pile_from[-howmany:])[0][0]} to {pile_to[-1][0]}')
         self.piles[from_idx] = np.array(list(pile_from[:-howmany]))
         self.piles[to_idx] = np.append(pile_to, move_cards)
 
@@ -150,28 +116,29 @@ class SpiderEngine:
 
 
     def calculate_goals(self,piles):
-
+        # isolate the up cards
         upcards = [piles[2*i+1] for i in range(10)]
         tails = [self.find_suited_tail(ucards) for ucards in upcards]
         moves = []
         for i in range(len(tails)):
             from_tail = tails[i]
-            if not from_tail:
+            if len(from_tail) == 0:
                 continue
             target_from = from_tail[0][0]
             for j in range(len(tails)):
                 if i != j:
                     to_tail = tails[j]
-                    if to_tail:
+                    strng = ''
+                    if len(to_tail) > 0:
                         target_to = to_tail[-1][0]
-                        if sc.RANKS.index(target_to) - sc.RANKS.index(target_from) == 1:
+                        value = sc.RANKS.index(target_to) - sc.RANKS.index(target_from)
+                        if value == 1:
                             move = sc.COLNUM[2*i+1] + sc.COLNUM[2*j+1] + sc.HEXNUM[len(tails[i])]
                             moves.append(move)
                     else:
                         move = sc.COLNUM[2 * i + 1] + sc.COLNUM[2 * j + 1] + sc.HEXNUM[len(tails[i])]
                         moves.append(move)
-
-        if self.game_strategy == sc.NORMAL and moves:
+        if self.game_strategy == sc.NORMAL and len(moves) > 0:
             move_ranks = []
             for move in moves:
                 move_ranks.append(self.rate_move(move))
@@ -183,12 +150,9 @@ class SpiderEngine:
             for i, rate in enumerate(move_ranks):
                 if rate == high:
                     results.append(moves[i])
+            move = random.choice(results)
+            self.mq.append(self.calc_pile_hash([list(pile) for pile in piles]))
 
-            while True:
-                move = random.choice(results)
-                if move not in self.mq:
-                    self.mq.append(self.calc_pile_hash([list(pile) for pile in piles]))
-                    break
             if len(self.mq) > 5:
                 self.mq = self.mq[-5:]
             self.spider_goal_queue.append(move)

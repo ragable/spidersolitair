@@ -30,5 +30,5 @@ MULTI  = 2 # used to indicate > 1 empty columns
 # of cards to be moved.
 # When backtracking a K becomes
 # an undo deal.
-COLNUM = '0123456789ABCDEFGHIJK'
+COLNUM = '0123456789ABCDEFGHIJKL'
 BASE_DATE = dt.datetime(2000,1,1)

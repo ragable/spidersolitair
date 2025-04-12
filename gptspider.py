@@ -17,7 +17,8 @@ class Diagnostics:
         self.mode = sc.NORMAL
 
 
-    def count(self,lists):
+    @staticmethod
+    def get_piles_structure(lists):
         connecteds = []
         for lst in lists:
             if len(lst) == 0:
@@ -41,7 +42,11 @@ class Diagnostics:
                         break
                     strng += relations[i]
                 connecteds.append(strng)
+        return connecteds
 
+    def count(self,lists):
+
+        connecteds = self.get_piles_structure(lists)
         suited = []
         unsuited = []
         for connected in connecteds:
@@ -85,7 +90,31 @@ class Diagnostics:
             self.multi_empty_columns_in_effect = True
             self.mode = sc.MULTI
         self.count(relevant_lists)
-        pass
+
+    def evaluate_piles(self,lists):
+        structures = self.get_piles_structure(lists)
+        ups = [structures[2*i+1] for i in range(10)]
+        suited_count = 0
+        unsuited_count = 0
+        for up in ups:
+            testrun = up.split('-')
+            suited_seqs = []
+            for item in testrun:
+                if '*' in item:
+                    suited_seqs.append(item)
+            for item in suited_seqs:
+                suited_count += len(item.split('*'))
+            unsuited_seqs = []
+            for item in testrun:
+                if "#" in item:
+                    unsuited_seqs.append(item)
+            for item in unsuited_seqs:
+                unsuited_count += len(item.split('#'))
+        return 2*suited_count + unsuited_count
+
+
+
+
 
 class SpiderDisplay:
     def __init__(self):
@@ -190,33 +219,33 @@ class SpiderDisplay:
         while True:
             engine.calculate_goals(engine.piles)
             if not engine.spider_goal_queue or len(engine.mq) != len(set(engine.mq)):
-                self.move_list.append('K')
+                engine.spider_goal_queue = []
+                self.move_list.append('L')
                 if len(stock) >= 10:
                     for i in range(10):
                         card = stock.pop()
                         engine.piles[2*i + 1] = np.append(engine.piles[2*i + 1], card)
                     display.draw_piles(engine.piles)
                     engine.mq =[]
-                    #continue
+                    continue
                 else:
-
-                    print("Stock empty — no more possible moves.")
+                    print(50*'*')
+                    print(f'No. of moves {self.moveno}')
                     print(f"MAX SUITED: {self.diags.max_suited_run_length}")
-                    print(f"MAX UNSUITED:{self.diags.max_unsuited_run_length}")
                     dealpart = self.dfilename.split('/')[1].split('.')[0]
                     fname = 'movefiles/' +    str(int((dt.datetime.now() - sc.BASE_DATE).microseconds))+ '-' + dealpart + '.txt'
                     print("Move file saved to " + fname)
                     with open(fname, 'w') as f:
                         f.write(str(self.move_list))
                     len_piles = [len(item) for item in engine.piles]
-                    pcount = sum(len_piles)
                     if sum(len_piles) == 0:
                         print('CONGRATULATIONS - YOU WON A SPIDER GAME!')
                     else:
-                        print(f'Sorry - you lost - there were {pcount} cards left on the table.')
+                        score = self.diags.evaluate_piles(engine.piles) + 26 * len(engine.finished_suits_pds)
+                        print(f'Sorry - you lost - your score was {score}/208.')
                     break
 
-            print(self.moveno)
+
             self.moveno+=1
             if engine.spider_goal_queue:
                 chosen_move = engine.spider_goal_queue.pop(0)
