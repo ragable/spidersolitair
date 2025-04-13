@@ -2,13 +2,7 @@
 import numpy as np
 import spider_constants as sc
 import zlib
-import random
 import copy as cpy
-
-
-
-
-
 
 class SpiderEngine:
     def __init__(self, piles):
@@ -77,53 +71,29 @@ class SpiderEngine:
 
 
     def move_sequence(self, mv_string):
+        local_piles = cpy.deepcopy(self.piles)
         from_idx = sc.COLNUM.index(mv_string[0])
         to_idx = sc.COLNUM.index(mv_string[1])
         howmany = sc.HEXNUM.index(mv_string[2])
-        pile_from = self.piles[from_idx]
-        pile_to = self.piles[to_idx]
-        visible = self.piles[from_idx]
-
-        if len(visible) < howmany:
-            return False
-
+        pile_from = local_piles[from_idx]
+        pile_to = local_piles[to_idx]
+        visible = local_piles[from_idx]
         move_cards = visible[-howmany:]
-        # Double-check the cards being moved are suited and descending
-        if not self.is_suited_descending_sequence(move_cards):
-            return False
-
-        self.piles[from_idx] = np.array(list(pile_from[:-howmany]))
-        self.piles[to_idx] = np.append(pile_to, move_cards)
-
-        return True
-
-    @staticmethod
-    def is_suited_descending_sequence(seq):
-        if len(seq) < 2:
-            return True
-        try:
-            suits = [sc.SUITS.index(c[1]) for c in seq]
-            values = [sc.RANKS.index(c[0]) for c in seq]
-        except (KeyError, IndexError, ValueError):
-            return False
-        return all(s == suits[0] for s in suits) and all(values[i] == values[i+1] + 1 for i in range(len(values) - 1))
-    @staticmethod
-    def calc_indices(card_ranks, standard):
-        ndx_lists = []
-        for rank in card_ranks:
-            temp = [rank == item for item in standard]
-            ndxes = list(zip(temp,range(10)))
-            nlist = [item[1] for item in ndxes if item[0]]
-            ndx_lists.append(nlist)
-        return ndx_lists
+        local_piles[from_idx] = pile_from[:-howmany]
+        for card in move_cards:
+            local_piles[to_idx].append(card)
+        if len(local_piles[from_idx]) == 0:
+            if len(local_piles[from_idx - 1]) != 0:
+                local_piles[from_idx].append(local_piles[from_idx - 1].pop())
+        return local_piles
 
 
 
-    def calculate_goals(self,piles):
+    def calculate_goals(self):
         # isolate the up cards
-        upcards = [piles[2*i+1] for i in range(10)]
+        upcards = [self.piles[2*i+1] for i in range(10)]
         tails = [self.find_suited_tail(ucards) for ucards in upcards]
-        moves = []
+        #moves = []
         for i in range(len(tails)):
             from_tail = tails[i]
             if len(from_tail) == 0:
@@ -137,70 +107,18 @@ class SpiderEngine:
                         value = sc.RANKS.index(target_to) - sc.RANKS.index(target_from)
                         if value == 1:
                             move = sc.COLNUM[2*i+1] + sc.COLNUM[2*j+1] + sc.HEXNUM[len(tails[i])]
-                            moves.append(move)
+                            #moves.append(move)
+                            self.spider_goal_queue.append(move)
                     else:
                         move = sc.COLNUM[2 * i + 1] + sc.COLNUM[2 * j + 1] + sc.HEXNUM[len(tails[i])]
-                        moves.append(move)
-        if self.game_strategy == sc.NORMAL and len(moves) > 0:
-            move_ranks = []
-            for move in moves:
-                move_ranks.append(self.rate_move(move))
-            high = 0
-            for rate in move_ranks:
-                if rate > high:
-                    high = rate
-            results = []
-            for i, rate in enumerate(move_ranks):
-                if rate == high:
-                    results.append(moves[i])
-            move = random.choice(results)
-            self.mq.append(self.calc_pile_hash([list(pile) for pile in piles]))
+                        #moves.append(move)
+                        self.spider_goal_queue.append(move)
+
+            self.mq.append(self.calc_pile_hash([list(pile) for pile in self.piles]))
 
             if len(self.mq) > 5:
                 self.mq = self.mq[-5:]
-            self.spider_goal_queue.append(move)
-        elif self.game_strategy == sc.SINGLE:
-            pass
-        elif self.game_strategy == sc.MULTI:
-            pass
 
-class Node:
-    def __init__(self, state, parent = None):
-        self.state = cpy.deepcopy(state)
-        self.parent = parent
-        self.children = {}
-        self.score = None
 
-class SpiderMoveTree:
 
-        def __init__(self):
-            self.nodes = []
-            self.leaves = []
-
-        def add(self, node):
-            self.nodes.append(node)
-
-        def connect(self, source_node_number, dest_node_number,move):
-            self.nodes[dest_node_number].parent = source_node_number
-            self.nodes[source_node_number].children[move] = dest_node_number
-
-        def traverse(self, nodenum = 0, visited = []):
-            if not self.nodes[nodenum].children:
-                self.leaves.append(nodenum)
-            if nodenum in visited:
-                return
-            visited.append(nodenum)
-            for edge in list(self.nodes[nodenum].children):
-                self.traverse(self.nodes[nodenum].children[edge], visited)
-
-        def backtrack(self,node):
-            lst = []
-            while True:
-                for key in list(self.nodes[node].children):
-                    if self.nodes[node].children[key] == camefrom:
-                        lst.append(key)
-                if node == 0:
-                    return lst[::-1]
-                camefrom = node
-                node = self.nodes[node].parent
 

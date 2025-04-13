@@ -7,6 +7,7 @@ from spider_engine import SpiderEngine
 import spider_constants as sc
 import datetime as dt
 import time
+import copy as cpy
 
 class Diagnostics:
     def __init__(self):
@@ -40,7 +41,7 @@ class Diagnostics:
                     strng += item
                     if n >= len(relations):
                         break
-                    strng += relations[i]
+                    strng += relations[n]
                 connecteds.append(strng)
         return connecteds
 
@@ -113,9 +114,6 @@ class Diagnostics:
         return 2*suited_count + unsuited_count
 
 
-
-
-
 class SpiderDisplay:
     def __init__(self):
         pygame.init()
@@ -130,6 +128,7 @@ class SpiderDisplay:
         self.move_list = []
         self.moveno = 1
         self.diags = Diagnostics()
+        self.smt = SpiderMoveTree()
 
 
     def load_card_images(self):
@@ -179,8 +178,6 @@ class SpiderDisplay:
 
 
     def create_initial_deal(self,deckname):
-    
-    
         if deckname is None:
             full_deck = sc.STANDARD_DECK * 2
             random.shuffle(full_deck)
@@ -193,7 +190,6 @@ class SpiderDisplay:
             self.dfilename = 'decks/' + deckname + '.txt'
             with open(self.dfilename, 'r') as f:
                 full_deck = eval(f.read())
-    
         tableau_piles = []
 
         sequence = [5,1,5,1,5,1,5,1,4,1,4,1,4,1,4,1,4,1,4,1]
@@ -208,17 +204,19 @@ class SpiderDisplay:
         return [np.array(pile) for pile in tableau_piles], full_deck
 
 
+
+
     def xeqt(self,deck=None):
         play_piles, stock = self.create_initial_deal(deck)
-        engine = SpiderEngine(play_piles)
+        engine = SpiderEngine([list(p) for p in play_piles])
         display = SpiderDisplay()
         engine.mq = []
     
         display.draw_piles([list(p) for p in engine.piles])
 
         while True:
-            engine.calculate_goals(engine.piles)
-            if not engine.spider_goal_queue or len(engine.mq) != len(set(engine.mq)):
+            set_of_moves = self.smt.build_move_tree([list(p) for p in engine.piles])
+            if not set_of_moves or len(engine.mq) != len(set(engine.mq)):
                 engine.spider_goal_queue = []   # prevents problems when it's a cycle
                                                 # that caused the redeal.
                 self.move_list.append('L')
@@ -248,20 +246,15 @@ class SpiderDisplay:
                         print(f'Sorry - you lost - your score was {score}/208.')
                     break
 
-
             self.moveno+=1
-            if engine.spider_goal_queue:
-                chosen_move = engine.spider_goal_queue.pop(0)
-
+            if set_of_moves:
+                chosen_move = set_of_moves.pop(0)
                 engine.move_sequence(chosen_move)
-
                 self.move_list.append(chosen_move)
-
                 from_idx = sc.COLNUM.index(chosen_move[0])
                 if len(engine.piles[from_idx]) == 0 and len(engine.piles[from_idx - 1]) != 0:
                     engine.piles[from_idx] = np.append(engine.piles[from_idx],engine.piles[from_idx - 1][-1])
                     engine.piles[from_idx-1] = engine.piles[from_idx - 1][:-1]
-
                 self.diags.collect([list(pile) for pile in engine.piles])
                 display.draw_piles(engine.piles)
                 display.delay_play(0)
@@ -270,9 +263,119 @@ class SpiderDisplay:
 
         display.quit()
 
+class Node:
+    def __init__(self, state, parent = None):
+        self.state = cpy.deepcopy(state)
+        self.parent = parent
+        self.children = {}
+        self.score = None
+
+class SpiderMoveTree:
+    """
+    This class must be used as follows:
+    Step 1: Construct the tree using add
+    and connect.
+    Step 2: After it is complete perform
+    a traverse.
+    Step 3: Using the info in self.leaves
+    perform backtrack to get all the
+    paths through the tree and the
+    final value of the path.
+    This info can then be used to make
+    an itelligent decision about the
+    next path to be taken.
+    The level in spiderconstants
+    must be respected.
+    """
+
+    def __init__(self):
+        self.nodes = []
+        self.leaves = []
+        self.myEngine = None
+        self.myDiags = Diagnostics()
+
+
+    def add(self, node):
+        self.nodes.append(node)
+
+    def connect(self, source_node_number, dest_node_number,move):
+        self.nodes[dest_node_number].parent = source_node_number
+        self.nodes[source_node_number].children[move] = dest_node_number
+
+    def get_level(self):
+        node = self.nodes[-1]
+        level = 1
+        while node.parent:
+            level += 1
+            node = self.nodes[node.parent]
+        return level
+
+    def build_move_tree(self,piles):
+        current_node = 0
+        self.add(Node(piles))
+        while True:
+            self.myEngine = SpiderEngine(self.nodes[current_node].state)
+            self.myEngine.calculate_goals()
+            if self.myEngine.spider_goal_queue:
+                for move in self.myEngine.spider_goal_queue:
+                    new_piles = self.myEngine.move_sequence(move)
+                    self.add(Node(new_piles))
+                    self.connect(current_node,len(self.nodes) - 1, move)
+            current_node += 1
+            print(self.get_level())
+            if self.get_level() >= sc.SPIDER_LEVEL:
+                break
+        self.traverse()
+        return self.get_best_move_sequence()
+
+
+    def traverse(self, nodenum = 0, visited = []):
+        if not self.nodes[nodenum].children:
+            self.leaves.append(nodenum)
+        if nodenum in visited:
+            return
+        visited.append(nodenum)
+        for edge in list(self.nodes[nodenum].children):
+            self.traverse(self.nodes[nodenum].children[edge], visited)
+
+    def get_best_move_sequence(self):
+        lst = []
+        evals = []
+        for leaf in self.leaves:
+            temp = []
+            camefrom = leaf
+            goto = self.nodes[leaf].parent
+            evalpiles = self.nodes[leaf].state
+            evals.append(self.myDiags.evaluate_piles(evalpiles))
+            while True:
+                key = next((k for k, v in self.nodes[goto].children.items() if v == camefrom),None)
+                temp.append(key)
+                if goto == 0:
+                    break
+
+                camefrom = goto
+                goto = self.nodes[goto].parent
+
+            lst.append(temp[::-1])
+        largest = 0
+        for eval in evals:
+            if eval > largest:
+                largest = eval
+        candidates_indices = []
+        for eval in evals:
+            if eval == largest:
+                candidates_indices.append(evals.index(eval))
+        movelist = []
+        for candidate_ndx in candidates_indices:
+            movelist.append(lst[candidate_ndx])
+        if len(movelist) > 1:
+            chosen = random.choice(movelist)
+        else:
+            chosen = movelist[0]
+        return chosen
 
 if __name__ == "__main__":
 
     for i in range(100):
         sd = SpiderDisplay()
-        sd.xeqt('65403372')
+        sd.xeqt('dc09f9f3')
