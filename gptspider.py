@@ -36,9 +36,9 @@ class Diagnostics:
                     else:
                         relations.append('-')
                 strng = ''
-                for i,item in enumerate(lst):
+                for n,item in enumerate(lst):
                     strng += item
-                    if i >= len(relations):
+                    if n >= len(relations):
                         break
                     strng += relations[i]
                 connecteds.append(strng)
@@ -72,8 +72,8 @@ class Diagnostics:
 
     def collect(self, lists):
         relevant_lists = []
-        for i in range(10):
-            relevant_lists.append(lists[2*i+1])
+        for n in range(10):
+            relevant_lists.append(lists[2*n+1])
 
         lengths = [len(lst) for lst in relevant_lists]
         empties = sum([item == 0 for item in lengths])
@@ -93,7 +93,7 @@ class Diagnostics:
 
     def evaluate_piles(self,lists):
         structures = self.get_piles_structure(lists)
-        ups = [structures[2*i+1] for i in range(10)]
+        ups = [structures[2*n+1] for n in range(10)]
         suited_count = 0
         unsuited_count = 0
         for up in ups:
@@ -223,9 +223,9 @@ class SpiderDisplay:
                                                 # that caused the redeal.
                 self.move_list.append('L')
                 if len(stock) >= 10:
-                    for i in range(10):
+                    for n in range(10):
                         card = stock.pop()
-                        engine.piles[2*i + 1] = np.append(engine.piles[2*i + 1], card)
+                        engine.piles[2*n + 1] = np.append(engine.piles[2*n + 1], card)
                     display.draw_piles(engine.piles)
                     engine.mq =[]
                     continue

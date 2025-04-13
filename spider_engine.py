@@ -3,7 +3,11 @@ import numpy as np
 import spider_constants as sc
 import zlib
 import random
-import copy as cp
+import copy as cpy
+
+
+
+
 
 
 class SpiderEngine:
@@ -128,7 +132,6 @@ class SpiderEngine:
             for j in range(len(tails)):
                 if i != j:
                     to_tail = tails[j]
-                    strng = ''
                     if len(to_tail) > 0:
                         target_to = to_tail[-1][0]
                         value = sc.RANKS.index(target_to) - sc.RANKS.index(target_from)
@@ -160,4 +163,44 @@ class SpiderEngine:
             pass
         elif self.game_strategy == sc.MULTI:
             pass
+
+class Node:
+    def __init__(self, state, parent = None):
+        self.state = cpy.deepcopy(state)
+        self.parent = parent
+        self.children = {}
+        self.score = None
+
+class SpiderMoveTree:
+
+        def __init__(self):
+            self.nodes = []
+            self.leaves = []
+
+        def add(self, node):
+            self.nodes.append(node)
+
+        def connect(self, source_node_number, dest_node_number,move):
+            self.nodes[dest_node_number].parent = source_node_number
+            self.nodes[source_node_number].children[move] = dest_node_number
+
+        def traverse(self, nodenum = 0, visited = []):
+            if not self.nodes[nodenum].children:
+                self.leaves.append(nodenum)
+            if nodenum in visited:
+                return
+            visited.append(nodenum)
+            for edge in list(self.nodes[nodenum].children):
+                self.traverse(self.nodes[nodenum].children[edge], visited)
+
+        def backtrack(self,node):
+            lst = []
+            while True:
+                for key in list(self.nodes[node].children):
+                    if self.nodes[node].children[key] == camefrom:
+                        lst.append(key)
+                if node == 0:
+                    return lst[::-1]
+                camefrom = node
+                node = self.nodes[node].parent
 
