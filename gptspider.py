@@ -251,6 +251,7 @@ class SpiderDisplay:
         # this delay is so you can look at the state
         # at the end IF the longest suited run
         # was >= 9
+        print(40*'*')
         print(f'max suited run: {self.diags.max_suited_run_length}')
 
         self.delay_play(0.0)
@@ -404,5 +405,5 @@ if __name__ == "__main__":
 
     for i in range(100):
         sd = SpiderDisplay()
-        sd.xeqt('2499eff2')
+        sd.xeqt('1361ec2b')
     pygame.quit()
