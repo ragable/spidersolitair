@@ -69,11 +69,9 @@ class SpiderEngine:
 
 
     def move_sequence(self, mv_string):
-        local_piles = cpy.deepcopy(self.piles)
-        try:
-            from_idx = sc.COLNUM.index(mv_string[0])
-        except:
-            pass
+        temp_piles = cpy.deepcopy(self.piles)
+        local_piles = [list(p) for p in temp_piles]
+        from_idx = sc.COLNUM.index(mv_string[0])
         to_idx = sc.COLNUM.index(mv_string[1])
         howmany = sc.HEXNUM.index(mv_string[2])
         pile_from = local_piles[from_idx]

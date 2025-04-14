@@ -130,6 +130,7 @@ class SpiderDisplay:
         self.diags = Diagnostics()
         self.smt = SpiderMoveTree()
         self.set_of_moves = []
+        self.stock = []
 
 
     def load_card_images(self):
@@ -205,57 +206,88 @@ class SpiderDisplay:
         return [np.array(pile) for pile in tableau_piles], full_deck
 
 
+    def process_moves(self, engine):
+        self.set_of_moves = self.smt.build_move_tree([list(p) for p in engine.piles])
+        for chosen_move in self.set_of_moves:
+            # increment move number
+            self.moveno += 1
+            # perform the move (on the set of piles from which they were derived
+            engine.piles = engine.move_sequence(chosen_move)
+            # append the new hash of the modifed piles
+            engine.mq.append(engine.calc_pile_hash([list(pile) for pile in engine.piles]))
+            if len(engine.mq) != len(set(engine.mq)):
+                break
+            # Keep the move in the move list
+            self.move_list.append(chosen_move)
+            # get the column number (as an int) from the movestring
+            from_idx = sc.COLNUM.index(chosen_move[0])
+            # flip a card in the from column if a down card is the top card
+            if len(engine.piles[from_idx]) == 0 and len(engine.piles[from_idx - 1]) != 0:
+                engine.piles[from_idx] = np.append(engine.piles[from_idx], engine.piles[from_idx - 1][-1])
+                engine.piles[from_idx - 1] = engine.piles[from_idx - 1][:-1]
+            # do some diags on the piles
+            self.diags.collect([list(pile) for pile in engine.piles])
+            # display the results of the move
+            self.draw_piles(engine.piles)
+            # wait for a time (to allow human to see
+            # or if you want speed - set to 0
+            self.delay_play(0)
+            # if a cycle is occurring break out of this
+            # loop NOTE: this does NOT mean you
+            # are breaking out of the while True loop
 
+
+    def redeal(self,engine):
+        self.set_of_moves = []
+        # take 10 cards out of the deck
+        for n in range(10):
+            # and distribute them to each
+            # column one at  atim
+            card = self.stock.pop()
+            engine.piles[2 * n + 1] = np.append(engine.piles[2 * n + 1], card)
+        # display the cards after the deal
+        self.draw_piles(engine.piles)
+        # acknowledge having done so with an "L"
+        # in the move list
+        self.move_list.append('L')
+        # clear mq
+        engine.mq = []
+
+    def cleanup(self,engine):
+        # if you got here there were no cards left
+        # in the deck so the game is over
+        # this delay is so you can look at the state
+        # at the end IF the longest suited run
+        # was >= 9
+        print(f'max suited run: {self.diags.max_suited_run_length}')
+
+        self.delay_play(10.0)
+        # build the name of the file you are going to save the
+        # moves to and save them
+        dealpart = self.dfilename.split('/')[1].split('.')[0]
+        fname = 'movefiles/' + str(int((dt.datetime.now() - sc.BASE_DATE).microseconds)) + '-' + dealpart + '.txt'
+        print("Move file saved to " + fname)
+        with open(fname, 'w') as f:
+            f.write(str(self.move_list))
+        # calculate the score based on suited runs and unsuited runs.
+        # a win is a score of  208.
+        score = self.diags.evaluate_piles(engine.piles) + 26 * len(engine.finished_suits_pds)
+        print(f'Your score was {score}/208.')
+        print('NOTE: 208/208 is a win!')
 
     def xeqt(self,deck=None):
-        play_piles, stock = self.create_initial_deal(deck)
+        play_piles, self.stock = self.create_initial_deal(deck)
         engine = SpiderEngine([list(p) for p in play_piles])
-        display = SpiderDisplay()
         engine.mq = []
     
-        display.draw_piles([list(p) for p in engine.piles])
+        self.draw_piles([list(p) for p in engine.piles])
         while True:
-            self.set_of_moves = self.smt.build_move_tree([list(p) for p in engine.piles])
-            for chosen_move in self.set_of_moves:
-                self.moveno+=1
-                engine.piles = engine.move_sequence(chosen_move)
-                engine.mq.append(engine.calc_pile_hash([list(pile) for pile in engine.piles]))
-                self.move_list.append(chosen_move)
-                from_idx = sc.COLNUM.index(chosen_move[0])
-                if len(engine.piles[from_idx]) == 0 and len(engine.piles[from_idx - 1]) != 0:
-                    engine.piles[from_idx] = np.append(engine.piles[from_idx],engine.piles[from_idx - 1][-1])
-                    engine.piles[from_idx-1] = engine.piles[from_idx - 1][:-1]
-                self.diags.collect([list(pile) for pile in engine.piles])
-                display.draw_piles(engine.piles)
-                display.delay_play(0.0)
-                if len(engine.mq) != len(set(engine.mq)):
-                    break
-
-    
-        self.set_of_moves = []  # prevents problems when it's a cycle
-                                        # that caused the redeal.
-
-        if len(stock) >= 10:
-            for n in range(10):
-                card = stock.pop()
-                engine.piles[2*n + 1] = np.append(engine.piles[2*n + 1], card)
-            display.draw_piles(engine.piles)
-            self.move_list.append('L')
-            engine.mq =[]
-
-        else:
-            if self.diags.max_suited_run_length >= 9:
-                print('Delaying - found run > 9')
-                self.delay_play(10.0)
-            dealpart = self.dfilename.split('/')[1].split('.')[0]
-            fname = 'movefiles/' +    str(int((dt.datetime.now() - sc.BASE_DATE).microseconds))+ '-' + dealpart + '.txt'
-            print("Move file saved to " + fname)
-            with open(fname, 'w') as f:
-                f.write(str(self.move_list))
-            score = self.diags.evaluate_piles(engine.piles) + 26 * len(engine.finished_suits_pds)
-            print(f'Your score was {score}/208.')
-            print('NOTE: 208/208 is a win!')
-        display.quit()
+            self.process_moves(engine)
+            if len(self.stock) >= 10:
+                self.redeal(engine)
+            else:
+                self.cleanup(engine)
+                return
 
 class Node:
     def __init__(self, state, parent = None):
@@ -374,4 +406,5 @@ if __name__ == "__main__":
 
     for i in range(100):
         sd = SpiderDisplay()
-        sd.xeqt('dc09f9f3')
+        sd.xeqt()
+    pygame.quit()
