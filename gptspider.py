@@ -208,33 +208,25 @@ class SpiderDisplay:
 
     def process_moves(self, engine):
         self.set_of_moves = self.smt.build_move_tree([list(p) for p in engine.piles])
+        if not self.set_of_moves:
+            return False
         for chosen_move in self.set_of_moves:
             # increment move number
             self.moveno += 1
-            # perform the move (on the set of piles from which they were derived
             engine.piles = engine.move_sequence(chosen_move)
-            # append the new hash of the modifed piles
             engine.mq.append(engine.calc_pile_hash([list(pile) for pile in engine.piles]))
             if len(engine.mq) != len(set(engine.mq)):
-                break
-            # Keep the move in the move list
+                return False
             self.move_list.append(chosen_move)
-            # get the column number (as an int) from the movestring
             from_idx = sc.COLNUM.index(chosen_move[0])
-            # flip a card in the from column if a down card is the top card
             if len(engine.piles[from_idx]) == 0 and len(engine.piles[from_idx - 1]) != 0:
                 engine.piles[from_idx] = np.append(engine.piles[from_idx], engine.piles[from_idx - 1][-1])
                 engine.piles[from_idx - 1] = engine.piles[from_idx - 1][:-1]
-            # do some diags on the piles
             self.diags.collect([list(pile) for pile in engine.piles])
-            # display the results of the move
             self.draw_piles(engine.piles)
-            # wait for a time (to allow human to see
-            # or if you want speed - set to 0
-            self.delay_play(0)
-            # if a cycle is occurring break out of this
-            # loop NOTE: this does NOT mean you
-            # are breaking out of the while True loop
+            self.delay_play(0.5)
+        return True
+
 
 
     def redeal(self,engine):
@@ -261,7 +253,7 @@ class SpiderDisplay:
         # was >= 9
         print(f'max suited run: {self.diags.max_suited_run_length}')
 
-        self.delay_play(10.0)
+        self.delay_play(0.0)
         # build the name of the file you are going to save the
         # moves to and save them
         dealpart = self.dfilename.split('/')[1].split('.')[0]
@@ -281,13 +273,16 @@ class SpiderDisplay:
         engine.mq = []
     
         self.draw_piles([list(p) for p in engine.piles])
-        while True:
-            self.process_moves(engine)
-            if len(self.stock) >= 10:
-                self.redeal(engine)
-            else:
-                self.cleanup(engine)
-                return
+        got_moves = True
+        while got_moves:
+            got_moves = self.process_moves(engine)
+            if not got_moves:
+                if len(self.stock) >= 10:
+                    self.redeal(engine)
+                    got_moves = True
+                else:
+                    self.cleanup(engine)
+                    return
 
 class Node:
     def __init__(self, state, parent = None):
@@ -349,7 +344,10 @@ class SpiderMoveTree:
                     new_piles = self.myEngine.move_sequence(move)
                     self.add(Node(new_piles))
                     self.connect(current_node,len(self.nodes) - 1, move)
-            current_node += 1
+                current_node += 1
+            else:
+                return []
+
             if self.get_level() >= sc.SPIDER_LEVEL:
                 break
         self.traverse()
@@ -390,9 +388,9 @@ class SpiderMoveTree:
             if evalue > largest:
                 largest = evalue
         candidates_indices = []
-        for evalue in evalues:
+        for i,evalue in enumerate(evalues):
             if evalue == largest:
-                candidates_indices.append(evalues.index(evalue))
+                candidates_indices.append(i)
         movelist = []
         for candidate_ndx in candidates_indices:
             movelist.append(lst[candidate_ndx])
@@ -406,5 +404,5 @@ if __name__ == "__main__":
 
     for i in range(100):
         sd = SpiderDisplay()
-        sd.xeqt()
+        sd.xeqt('2499eff2')
     pygame.quit()
