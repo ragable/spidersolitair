@@ -129,6 +129,7 @@ class SpiderDisplay:
         self.moveno = 1
         self.diags = Diagnostics()
         self.smt = SpiderMoveTree()
+        self.set_of_moves = []
 
 
     def load_card_images(self):
@@ -213,11 +214,26 @@ class SpiderDisplay:
         engine.mq = []
     
         display.draw_piles([list(p) for p in engine.piles])
-
         while True:
-            set_of_moves = self.smt.build_move_tree([list(p) for p in engine.piles])
-            if not set_of_moves or len(engine.mq) != len(set(engine.mq)):
-                engine.spider_goal_queue = []   # prevents problems when it's a cycle
+            self.set_of_moves = self.smt.build_move_tree([list(p) for p in engine.piles])
+            for chosen_move in self.set_of_moves:
+                self.moveno+=1
+                engine.piles = engine.move_sequence(chosen_move)
+                engine.mq.append(engine.calc_pile_hash([list(pile) for pile in engine.piles]))
+                self.move_list.append(chosen_move)
+                from_idx = sc.COLNUM.index(chosen_move[0])
+                if len(engine.piles[from_idx]) == 0 and len(engine.piles[from_idx - 1]) != 0:
+                    engine.piles[from_idx] = np.append(engine.piles[from_idx],engine.piles[from_idx - 1][-1])
+                    engine.piles[from_idx-1] = engine.piles[from_idx - 1][:-1]
+                self.diags.collect([list(pile) for pile in engine.piles])
+                display.draw_piles(engine.piles)
+                display.delay_play(0)
+                if len(engine.mq) != len(set(engine.mq)):
+                    break
+
+    
+            if not self.set_of_moves or len(engine.mq) != len(set(engine.mq)):
+                self.set_of_moves = []  # prevents problems when it's a cycle
                                                 # that caused the redeal.
                 self.move_list.append('L')
                 if len(stock) >= 10:
@@ -228,39 +244,18 @@ class SpiderDisplay:
                     engine.mq =[]
                     continue
                 else:
-                    print(50*'*')
-                    print(f'No. of moves {self.moveno}')
-                    print(f"MAX SUITED: {self.diags.max_suited_run_length}")
                     if self.diags.max_suited_run_length >= 9:
+                        print('Delaying - found run > 9')
                         self.delay_play(10.0)
                     dealpart = self.dfilename.split('/')[1].split('.')[0]
                     fname = 'movefiles/' +    str(int((dt.datetime.now() - sc.BASE_DATE).microseconds))+ '-' + dealpart + '.txt'
                     print("Move file saved to " + fname)
                     with open(fname, 'w') as f:
                         f.write(str(self.move_list))
-                    len_piles = [len(item) for item in engine.piles]
-                    if sum(len_piles) == 0:
-                        print('CONGRATULATIONS - YOU WON A SPIDER GAME!')
-                    else:
-                        score = self.diags.evaluate_piles(engine.piles) + 26 * len(engine.finished_suits_pds)
-                        print(f'Sorry - you lost - your score was {score}/208.')
+                    score = self.diags.evaluate_piles(engine.piles) + 26 * len(engine.finished_suits_pds)
+                    print(f'Your score was {score}/208.')
+                    print('NOTE: 208/208 is a win!')
                     break
-
-            self.moveno+=1
-            if set_of_moves:
-                chosen_move = set_of_moves.pop(0)
-                engine.move_sequence(chosen_move)
-                self.move_list.append(chosen_move)
-                from_idx = sc.COLNUM.index(chosen_move[0])
-                if len(engine.piles[from_idx]) == 0 and len(engine.piles[from_idx - 1]) != 0:
-                    engine.piles[from_idx] = np.append(engine.piles[from_idx],engine.piles[from_idx - 1][-1])
-                    engine.piles[from_idx-1] = engine.piles[from_idx - 1][:-1]
-                self.diags.collect([list(pile) for pile in engine.piles])
-                display.draw_piles(engine.piles)
-                display.delay_play(0)
-            else:
-                continue
-
         display.quit()
 
 class Node:
@@ -315,14 +310,13 @@ class SpiderMoveTree:
         self.add(Node(piles))
         while True:
             self.myEngine = SpiderEngine(self.nodes[current_node].state)
-            self.myEngine.calculate_goals()
-            if self.myEngine.spider_goal_queue:
-                for move in self.myEngine.spider_goal_queue:
+            moves = self.myEngine.calculate_goals()
+            if moves:
+                for move in moves:
                     new_piles = self.myEngine.move_sequence(move)
                     self.add(Node(new_piles))
                     self.connect(current_node,len(self.nodes) - 1, move)
             current_node += 1
-            print(self.get_level())
             if self.get_level() >= sc.SPIDER_LEVEL:
                 break
         self.traverse()
@@ -340,13 +334,13 @@ class SpiderMoveTree:
 
     def get_best_move_sequence(self):
         lst = []
-        evals = []
+        evalues = []
         for leaf in self.leaves:
             temp = []
             camefrom = leaf
             goto = self.nodes[leaf].parent
             evalpiles = self.nodes[leaf].state
-            evals.append(self.myDiags.evaluate_piles(evalpiles))
+            evalues.append(self.myDiags.evaluate_piles(evalpiles))
             while True:
                 key = next((k for k, v in self.nodes[goto].children.items() if v == camefrom),None)
                 temp.append(key)
@@ -358,13 +352,13 @@ class SpiderMoveTree:
 
             lst.append(temp[::-1])
         largest = 0
-        for eval in evals:
-            if eval > largest:
-                largest = eval
+        for evalue in evalues:
+            if evalue > largest:
+                largest = evalue
         candidates_indices = []
-        for eval in evals:
-            if eval == largest:
-                candidates_indices.append(evals.index(eval))
+        for evalue in evalues:
+            if evalue == largest:
+                candidates_indices.append(evalues.index(eval))
         movelist = []
         for candidate_ndx in candidates_indices:
             movelist.append(lst[candidate_ndx])

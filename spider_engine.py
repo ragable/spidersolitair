@@ -1,5 +1,4 @@
 # spider_engine.py
-import numpy as np
 import spider_constants as sc
 import zlib
 import copy as cpy
@@ -8,7 +7,6 @@ class SpiderEngine:
     def __init__(self, piles):
         self.piles = piles
         self.finished_suits_pds = []
-        self.spider_goal_queue = []
         self.game_state = sc.FORWARD
         self.game_strategy = sc.NORMAL
         self.mq = []
@@ -76,7 +74,6 @@ class SpiderEngine:
         to_idx = sc.COLNUM.index(mv_string[1])
         howmany = sc.HEXNUM.index(mv_string[2])
         pile_from = local_piles[from_idx]
-        pile_to = local_piles[to_idx]
         visible = local_piles[from_idx]
         move_cards = visible[-howmany:]
         local_piles[from_idx] = pile_from[:-howmany]
@@ -93,7 +90,7 @@ class SpiderEngine:
         # isolate the up cards
         upcards = [self.piles[2*i+1] for i in range(10)]
         tails = [self.find_suited_tail(ucards) for ucards in upcards]
-        #moves = []
+        moves = []
         for i in range(len(tails)):
             from_tail = tails[i]
             if len(from_tail) == 0:
@@ -107,17 +104,13 @@ class SpiderEngine:
                         value = sc.RANKS.index(target_to) - sc.RANKS.index(target_from)
                         if value == 1:
                             move = sc.COLNUM[2*i+1] + sc.COLNUM[2*j+1] + sc.HEXNUM[len(tails[i])]
-                            #moves.append(move)
-                            self.spider_goal_queue.append(move)
+                            moves.append(move)
+
                     else:
                         move = sc.COLNUM[2 * i + 1] + sc.COLNUM[2 * j + 1] + sc.HEXNUM[len(tails[i])]
-                        #moves.append(move)
-                        self.spider_goal_queue.append(move)
+                        moves.append(move)
+        return moves
 
-            self.mq.append(self.calc_pile_hash([list(pile) for pile in self.piles]))
-
-            if len(self.mq) > 5:
-                self.mq = self.mq[-5:]
 
 
 
