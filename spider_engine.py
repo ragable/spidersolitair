@@ -70,7 +70,10 @@ class SpiderEngine:
 
     def move_sequence(self, mv_string):
         local_piles = cpy.deepcopy(self.piles)
-        from_idx = sc.COLNUM.index(mv_string[0])
+        try:
+            from_idx = sc.COLNUM.index(mv_string[0])
+        except:
+            pass
         to_idx = sc.COLNUM.index(mv_string[1])
         howmany = sc.HEXNUM.index(mv_string[2])
         pile_from = local_piles[from_idx]
@@ -86,7 +89,7 @@ class SpiderEngine:
 
 
 
-    def calculate_goals(self):
+    def calculate_moves(self):
         # isolate the up cards
         upcards = [self.piles[2*i+1] for i in range(10)]
         tails = [self.find_suited_tail(ucards) for ucards in upcards]
