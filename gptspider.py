@@ -231,18 +231,11 @@ class SpiderDisplay:
 
     def redeal(self,engine):
         self.set_of_moves = []
-        # take 10 cards out of the deck
         for n in range(10):
-            # and distribute them to each
-            # column one at  atim
             card = self.stock.pop()
             engine.piles[2 * n + 1] = np.append(engine.piles[2 * n + 1], card)
-        # display the cards after the deal
         self.draw_piles(engine.piles)
-        # acknowledge having done so with an "L"
-        # in the move list
         self.move_list.append('L')
-        # clear mq
         engine.mq = []
 
     def cleanup(self,engine):
