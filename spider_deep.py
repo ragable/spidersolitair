@@ -196,22 +196,29 @@ class SpiderGame:
         moves = []
 
 
-        for i in range((len(sequences))):
-            for j in range((len(sequences))):
-                if self.suited_seq(sequences[i][-1],sequences[j][0]):
-                    if i < j:
-                        moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(sequences[i])])
-                    elif i > j:
-                        moves.append(COLUMNIDS[2 * j + 1] + COLUMNIDS[2 * i + 1] + COLUMNIDS[len(sequences[j])])
+        for i,seqto in enumerate(sequences):
+            for j,seqfrom in enumerate(sequences):
+                if seqfrom and seqto:
+                    if self.suited_seq(sequences[i][-1],sequences[j][0]):
+                        if i < j:
+                            moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(sequences[i])])
+                        elif i > j:
+                            moves.append(COLUMNIDS[2 * j + 1] + COLUMNIDS[2 * i + 1] + COLUMNIDS[len(sequences[j])])
+                elif seqfrom:
+                    moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(seqfrom)])
+
 
         if moves == []:
-            for i in range((len(sequences))):
-                for j in range((len(sequences))):
-                    if self.sequential(sequences[i][-1], sequences[j][0]):
-                        if i < j:
-                            moves.append(COLUMNIDS[2 * j + 1] + COLUMNIDS[2 * i + 1] + COLUMNIDS[len(sequences[i])])
-                        elif i > j:
-                            moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(sequences[j])])
+            for i,seqto in enumerate(sequences):
+                for j,seqfrom in enumerate(sequences):
+                    if seqfrom and seqto:
+                        if self.sequential(sequences[i][-1], sequences[j][0]):
+                            if i < j:
+                                moves.append(COLUMNIDS[2 * j + 1] + COLUMNIDS[2 * i + 1] + COLUMNIDS[len(sequences[i])])
+                            elif i > j:
+                                moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(sequences[j])])
+                    elif seqfrom:
+                        moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(seqfrom)])
 
         return moves
 
