@@ -178,7 +178,7 @@ class SpiderGame:
                         relations.append('-')
                 inv = relations[::-1]
                 count = 0
-                for chrc in relations:
+                for chrc in inv:
                     if chrc == '*':
                         count += 1
                     else:
@@ -266,29 +266,38 @@ class SpiderGame:
 
     def execute(self):
 
-        self.game_setup('87654321')
+        self.game_setup('87654321') #'1361ec2b')
         self.spidertree.add(SpiderNode())
         while True:
             moves = self.getmoves()
             cycle_error = len(self.mq) != len(set(self.mq))
-            if not moves or cycle_error:
-                if self.deck:
-                    self.redeal()
-                    self.mq = []
-                    continue
-                else:
-                    pass
+            if (not moves or cycle_error) and self.deck:
+                self.redeal()
+                self.mq = []
+                continue
+            elif cycle_error and not moves:
+                break
 
             for move in moves:
                 self.spidertree.nodes[self.current_node].children[move] = None
-            chosen = ran.choice(moves)
+            try:
+                chosen = ran.choice(moves)
+            except:
+                pass
+
             self.spidertree.nodes[self.current_node].children[chosen] = len(self.spidertree.nodes)
             self.spidertree.add(SpiderNode())
             self.do_move(chosen)
+            upcards = [self.tableau[2*i+1] for i in range(10) ]
+            print(f"From: {(COLUMNIDS.index(chosen[0]) - 1)//2}, To: {(COLUMNIDS.index(chosen[1]) - 1)//2}, Num: {COLUMNIDS.index(chosen[2])}\n UP: {upcards}")
             self.scan_for_full()
             self.logger.add_move(chosen)
             self.current_node = self.spidertree.nodes[self.current_node].children[chosen]
-            pass
+        if len(self.full_suits) == 8:
+            print('CONGRATULATIONS - you won.')
+        else:
+            print('Sorry, better luck next time - you lost.')
+
 
 if __name__ == "__main__":
     sg = SpiderGame()
