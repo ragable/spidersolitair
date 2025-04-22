@@ -1,11 +1,41 @@
 import random as ran
+import datetime as dt
+import zlib
+
 
 DECK_DIR = 'C:/Users/ralph/Desktop/spidersol/decks/'
+LOGGER_DIR = 'C:/Users/ralph/Desktop/spidersol/movelogs/'
 DEAL_SEQ = [5,1,5,1,5,1,5,1,4,1,4,1,4,1,4,1,4,1,4,1]
 RANKLIST = 'KQJT98765432A'
 SUITLIST = 'SHDC'
 COLUMNIDS = '0123456789ABCDEFGHIJ'
+STANDARD_DECK = [rank + suit for rank in RANKLIST for suit in SUITLIST]
 
+class MoveLogger:
+
+    def __init__(self):
+        self.log = []
+        self.backtrack_ndx = 0
+        now = dt.datetime.now()
+        logfile_name = LOGGER_DIR + now.strftime("%d-%H-%M-%S") +'.txt'
+        self.logfile = open(logfile_name,'w')
+
+    def add_move(self,move):
+        if self.backtrack_ndx != len(self.log) - 1:
+            self.backtrack_ndx = len(self.log)
+        self.log.append(move)
+
+    def backtrack(self):
+        if self.backtrack_ndx == len(self.log) - 1:
+            self.log.append(self.log[self.backtrack_ndx] + '*')
+            self.backtrack_ndx -= 1
+
+    def save(self):
+        for item in self.log:
+            self.logfile.write(item + '\n')
+        self.logfile.close()
+        self.log = []
+        self.backtrack_ndx = 0
 
 class SpiderNode:
 
@@ -20,6 +50,7 @@ class SpiderTree:
 
     def __init__(self):
         self.nodes = []
+
 
 
     def add(self,node):
@@ -37,8 +68,6 @@ class SpiderTree:
                 if self.nodes[investigate].children[node] == nodenum:
                     movelist.append(node)
             nodenum = investigate
-            #self.traverse_from_leaf(investigate,movelist)
-            #break
         rptlist = movelist[::-1]
         print(rptlist)
 
@@ -49,10 +78,15 @@ class SpiderTree:
 
 class SpiderGame:
     def __init__(self):
+
         self.deck = []
         self.tableau = []
         self.spidertree = SpiderTree()
         self.current_node = 0
+        self.logger = MoveLogger()
+        self.mq = []
+        self.score = None
+        self.full_suits = []
 
     def game_setup(self, deckcrc):
         with open(DECK_DIR + deckcrc + '.txt','r') as f:
@@ -65,28 +99,74 @@ class SpiderGame:
 
             self.tableau.append(build)
             build = []
+        pass
 
 
     def redeal(self):
+
         for n in range(10):
             card = self.deck.pop()
             self.tableau[2 * n + 1].append(card)
+        self.logger.add_move('***')
+
+    def undo_deal(self):
+
+        for n in range(10):
+            card = self.tableau[2 * n + 1].pop()
+            self.deck.append(card)
+        self.logger.backtrack()
+
+
+
 
     def suited_seq(self,card1,card2):
-        return self.sequential(card1,card2) and card1[0][1] == card2[0][1]
 
-    def sequential(self,card1,card2):
-        return RANKLIST.index(card1[0][0]) - RANKLIST.index(card2[0][0]) == -1
+        return card1[0] + card2[0] in RANKLIST and card1[1] == card2[1]
 
+    @staticmethod
+    def sequential(card1,card2):
+
+        return card1[0] + card2[0] in RANKLIST
+
+    def score_tableau(self):
+        for lst in self.tableau:
+            upcards = [self.tableau[2*i+1] for i in range(10) ]
+            upcardsall = []
+            for item in upcards:
+                for subitem in item:
+                    upcardsall.append(subitem)
+        ziplist = list(zip(upcardsall,upcardsall[1:]))
+        relations = []
+        for item in ziplist:
+            if self.suited_seq(item[0],item[1]):
+                relations.append('*')
+            elif self.sequential(item[0],item[1]):
+                relations.append('#')
+            else:
+                relations.append('-')
+        sscount = sum([item == '*' for item in relations])
+        sccount = sum([item == '#' for item in relations])
+        emptycolumncnt = sum([len(lst) == 0 for lst in upcards])
+        self.score = 2*sscount + sccount
+        if emptycolumncnt == 1:
+            self.score += 3
+        elif emptycolumncnt == 2:
+            self.score += 10
+        elif emptycolumncnt > 2:
+            self.score += 20
 
     def seqs(self, upcards):
+
         outseqs = []
         for lst in upcards:
             if len(lst) == 0:
+
                 outseqs.append([])
             elif len(lst) == 1:
+
                 outseqs.append(lst)
             else:
+
                 ziplist = list(zip(lst,lst[1:]))
                 relations = []
                 for item in ziplist:
@@ -109,23 +189,35 @@ class SpiderGame:
                     outseqs.append(lst[-(count+1):])
         return outseqs
 
-
-
-
     def getmoves(self):
+
         upcards = [self.tableau[2*i+1] for i in range(10)]
         sequences = self.seqs(upcards)
         moves = []
 
+
         for i in range((len(sequences))):
             for j in range((len(sequences))):
-                if i != j:
-                    if self.sequential(sequences[i],sequences[j]):
-                        moves.append(COLUMNIDS[2*i + 1] + COLUMNIDS[2*j+1] + hex(len(sequences[i]))[2:])
+                if self.suited_seq(sequences[i][-1],sequences[j][0]):
+                    if i < j:
+                        moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(sequences[i])])
+                    elif i > j:
+                        moves.append(COLUMNIDS[2 * j + 1] + COLUMNIDS[2 * i + 1] + COLUMNIDS[len(sequences[j])])
+
+        if moves == []:
+            for i in range((len(sequences))):
+                for j in range((len(sequences))):
+                    if self.sequential(sequences[i][-1], sequences[j][0]):
+                        if i < j:
+                            moves.append(COLUMNIDS[2 * j + 1] + COLUMNIDS[2 * i + 1] + COLUMNIDS[len(sequences[i])])
+                        elif i > j:
+                            moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(sequences[j])])
+
         return moves
 
 
     def do_move(self,move):
+
         from_ = COLUMNIDS.index(move[0])
         to_ = COLUMNIDS.index(move[1])
         num = int(move[2:],16)
@@ -135,25 +227,69 @@ class SpiderGame:
             if self.tableau[from_ - 1] != []:
                 self.tableau[from_] = self.tableau[from_ - 1][-1:]
                 self.tableau[from_ - 1] = self.tableau[from_ - 1][:-1]
+        flat = []
+        for item in self.tableau:
+            for subitem in item:
+                flat.append(subitem)
+        ba = bytearray([STANDARD_DECK.index(card) for card in flat])
+        crc = zlib.crc32(ba)
+        crchex = hex(crc)[2:]
+        self.mq.append(crchex)
+        if len(self.mq) > 5:
+            self.mq = self.mq[1:]
+        self.score = self.score_tableau()
+
+    def scan_for_full(self):
+        for i in range(10):
+            if len(self.tableau[2*i + 1]) >= 13:
+                suit_std = self.tableau[2*i+1][-1][1]
+                suitcount = sum([item[1] == suit_std for item in self.tableau[2*i+1]])
+                rankcount = 0
+                for k,rank in enumerate(RANKLIST):
+                    if rank == self.tableau[2*i+1][k][0]:
+                        rankcount += 1
+                if suitcount == 13 and rankcount == 13:
+                    self.full_suits.append(suit_std)
+                del self.tableau[2*i+1][-13:]
+                if self.tableau[2*i+1] == [] and len(self.tableau[2*i]) > 0:
+                    self.tableau[2*i+1].append(self.tableau[2*i].pop())
+
+
 
 
     def execute(self):
-        self.game_setup('1361ec2b')
+
+        self.game_setup('87654321')
         self.spidertree.add(SpiderNode())
         while True:
             moves = self.getmoves()
+            cycle_error = len(self.mq) != len(set(self.mq))
+            if not moves or cycle_error:
+                if self.deck:
+                    self.redeal()
+                    self.mq = []
+                    continue
+                else:
+                    pass
+
             for move in moves:
                 self.spidertree.nodes[self.current_node].children[move] = None
             chosen = ran.choice(moves)
             self.spidertree.nodes[self.current_node].children[chosen] = len(self.spidertree.nodes)
             self.spidertree.add(SpiderNode())
             self.do_move(chosen)
+            self.scan_for_full()
+            self.logger.add_move(chosen)
             self.current_node = self.spidertree.nodes[self.current_node].children[chosen]
             pass
 
 if __name__ == "__main__":
     sg = SpiderGame()
     sg.execute()
+
+
+
+
 
 
 
