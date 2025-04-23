@@ -1,6 +1,7 @@
 import random as ran
 import datetime as dt
 import zlib
+import pickle
 
 
 DECK_DIR = 'C:/Users/ralph/Desktop/spidersol/decks/'
@@ -84,7 +85,7 @@ class SpiderGame:
         self.spidertree = SpiderTree()
         self.current_node = 0
         self.logger = MoveLogger()
-        self.mq = []
+        self.mq = {}
         self.score = None
         self.full_suits = []
 
@@ -241,9 +242,10 @@ class SpiderGame:
         ba = bytearray([STANDARD_DECK.index(card) for card in flat])
         crc = zlib.crc32(ba)
         crchex = hex(crc)[2:]
-        self.mq.append(crchex)
-        if len(self.mq) > 5:
-            self.mq = self.mq[1:]
+        if crchex not in self.mq:
+            self.mq[crchex] = 1
+        else:
+            self.mq[crchex] += 1
         self.score = self.score_tableau()
 
     def scan_for_full(self):
@@ -270,23 +272,27 @@ class SpiderGame:
         self.spidertree.add(SpiderNode())
         while True:
             moves = self.getmoves()
-            cycle_error = len(self.mq) != len(set(self.mq))
+            cycle_error = False
+            for value in self.mq.values():
+                if value >= 10:
+                    cycle_error = True
+                    break
+            if len(list(self.mq)) > 20:
+                self.mq = {}
             if (not moves or cycle_error) and self.deck:
                 self.redeal()
-                self.mq = []
+                self.mq = {}
                 continue
-            elif cycle_error and not moves:
+            elif not moves:
                 break
 
             for move in moves:
                 self.spidertree.nodes[self.current_node].children[move] = None
-            try:
-                chosen = ran.choice(moves)
-            except:
-                pass
+            chosen = ran.choice(moves)
 
             self.spidertree.nodes[self.current_node].children[chosen] = len(self.spidertree.nodes)
             self.spidertree.add(SpiderNode())
+            self.spidertree.connect(self.current_node,len(self.spidertree.nodes) - 1,chosen)
             self.do_move(chosen)
             upcards = [self.tableau[2*i+1] for i in range(10) ]
             print(f"From: {(COLUMNIDS.index(chosen[0]) - 1)//2}, To: {(COLUMNIDS.index(chosen[1]) - 1)//2}, Num: {COLUMNIDS.index(chosen[2])}\n UP: {upcards}")
@@ -299,9 +305,23 @@ class SpiderGame:
             print('Sorry, better luck next time - you lost.')
 
 
+def save_state(data):
+    with open('pickles/spider_state.pickle','wb') as f:
+        pickle.dump(data,f,pickle.HIGHEST_PROTOCOL)
+
+def load_state():
+    with open('pickles/spider_state.pickle','rb') as f:
+        data = pickle.load(f)
+    return data
+
+
+
 if __name__ == "__main__":
     sg = SpiderGame()
     sg.execute()
+    save_state(sg.spidertree.nodes)
+    data = load_state()
+    pass
 
 
 
