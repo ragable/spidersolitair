@@ -3,9 +3,9 @@ import datetime as dt
 import zlib
 import pickle
 
-
-DECK_DIR = 'C:/Users/ralph/Desktop/spidersol/decks/'
-LOGGER_DIR = 'C:/Users/ralph/Desktop/spidersol/movelogs/'
+DECK_DIR = 'decks/'
+LOGGER_DIR = 'movelogs/'
+PICKLE_DIR = 'pickles/'
 DEAL_SEQ = [5,1,5,1,5,1,5,1,4,1,4,1,4,1,4,1,4,1,4,1]
 RANKLIST = 'KQJT98765432A'
 SUITLIST = 'SHDC'
@@ -21,15 +21,18 @@ class MoveLogger:
         logfile_name = LOGGER_DIR + now.strftime("%d-%H-%M-%S") +'.txt'
         self.logfile = open(logfile_name,'w')
 
+
     def add_move(self,move):
         if self.backtrack_ndx != len(self.log) - 1:
             self.backtrack_ndx = len(self.log)
         self.log.append(move)
 
+
     def backtrack(self):
         if self.backtrack_ndx == len(self.log) - 1:
             self.log.append(self.log[self.backtrack_ndx] + '*')
             self.backtrack_ndx -= 1
+
 
     def save(self):
         for item in self.log:
@@ -37,6 +40,7 @@ class MoveLogger:
         self.logfile.close()
         self.log = []
         self.backtrack_ndx = 0
+
 
 class SpiderNode:
 
@@ -46,20 +50,20 @@ class SpiderNode:
         self.hash = None
 
 
-
 class SpiderTree:
 
     def __init__(self):
         self.nodes = []
 
 
-
     def add(self,node):
         self.nodes.append(node)
+
 
     def connect(self,nodenum1,nodenum2, move):
         self.nodes[nodenum1].children[move] = nodenum2
         self.nodes[nodenum2].parent = nodenum1
+
 
     def traverse_from_leaf(self, nodenum):
         movelist = []
@@ -72,13 +76,15 @@ class SpiderTree:
         rptlist = movelist[::-1]
         print(rptlist)
 
+
     def general_traverse(self):
         for node in range(len(self.nodes)):
             if not self.nodes[node].children:
                 self.traverse_from_leaf(node)
 
+
 class SpiderGame:
-    def __init__(self):
+    def __init__(self, deck_crc = None, state_filename = None):
 
         self.deck = []
         self.tableau = []
@@ -88,27 +94,64 @@ class SpiderGame:
         self.mq = {}
         self.score = None
         self.full_suits = []
+        self.deck_crc = deck_crc
+        self.state_filename = state_filename
 
-    def game_setup(self, deckcrc):
-        with open(DECK_DIR + deckcrc + '.txt','r') as f:
+
+    def game_setup(self):
+        with open(DECK_DIR + self.deck_crc + '.txt','r') as f:
             self.deck = eval(f.read())
         build = []
         for num in DEAL_SEQ:
             while len(build) != num:
                 card = self.deck.pop()
                 build.append(card)
-
             self.tableau.append(build)
             build = []
+        if self.state_filename:
+            self.auto_start()
+
+
+    def auto_start(self):
+        working_tree = self.load_state()
+        working_moves = []
+        leaves = []
+        for i,node in enumerate(working_tree.nodes):
+            if working_tree.nodes[i].children == {}:
+                leaves.append(i)
+
+        if len(leaves) > 1:
+            while True:
+                answer = input('Which leaf file would you like to start from? \n' + str(leaves) + '\n')
+                if int(answer) not in leaves:
+                    print(f'{answer} not in leaves. Try again)')
+                else:
+                    break
+            current_node = int(answer)
+        elif len(leaves) == 1:
+            print(f'Only one leaf found {leaves[0]}. Will start from there')
+            current_node = leaves[0]
+
+
+        while working_tree.nodes[current_node].parent:
+            parent_node_number = working_tree.nodes[current_node].parent
+            moves = list(working_tree.nodes[parent_node_number].children)
+            for move in moves:
+                if working_tree.nodes[parent_node_number].children[move] == current_node:
+                    working_moves.append(move)
+                    break
+            current_node = parent_node_number
+        moves = list(working_tree.nodes[0].children)
+        for move in moves:
+            if working_tree.nodes[0].children[move] == 1:
+                working_moves.append(move)
+                break
+
+        rev_working_moves = working_moves[::-1]
+        for move in rev_working_moves:
+            self.do_move(move)
         pass
 
-
-    def redeal(self):
-
-        for n in range(10):
-            card = self.deck.pop()
-            self.tableau[2 * n + 1].append(card)
-        self.logger.add_move('***')
 
     def undo_deal(self):
 
@@ -118,16 +161,15 @@ class SpiderGame:
         self.logger.backtrack()
 
 
-
-
     def suited_seq(self,card1,card2):
 
         return card1[0] + card2[0] in RANKLIST and card1[1] == card2[1]
 
+
     @staticmethod
     def sequential(card1,card2):
-
         return card1[0] + card2[0] in RANKLIST
+
 
     def score_tableau(self):
         for lst in self.tableau:
@@ -156,18 +198,15 @@ class SpiderGame:
         elif emptycolumncnt > 2:
             self.score += 20
 
-    def seqs(self, upcards):
 
+    def seqs(self, upcards):
         outseqs = []
         for lst in upcards:
             if len(lst) == 0:
-
                 outseqs.append([])
             elif len(lst) == 1:
-
                 outseqs.append(lst)
             else:
-
                 ziplist = list(zip(lst,lst[1:]))
                 relations = []
                 for item in ziplist:
@@ -190,13 +229,11 @@ class SpiderGame:
                     outseqs.append(lst[-(count+1):])
         return outseqs
 
-    def getmoves(self):
 
+    def getmoves(self):
         upcards = [self.tableau[2*i+1] for i in range(10)]
         sequences = self.seqs(upcards)
         moves = []
-
-
         for i,seqto in enumerate(sequences):
             for j,seqfrom in enumerate(sequences):
                 if seqfrom and seqto:
@@ -207,8 +244,6 @@ class SpiderGame:
                             moves.append(COLUMNIDS[2 * j + 1] + COLUMNIDS[2 * i + 1] + COLUMNIDS[len(sequences[j])])
                 elif seqfrom:
                     moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(seqfrom)])
-
-
         if moves == []:
             for i,seqto in enumerate(sequences):
                 for j,seqfrom in enumerate(sequences):
@@ -220,33 +255,37 @@ class SpiderGame:
                                 moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(sequences[j])])
                     elif seqfrom:
                         moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(seqfrom)])
-
         return moves
 
 
     def do_move(self,move):
-
-        from_ = COLUMNIDS.index(move[0])
-        to_ = COLUMNIDS.index(move[1])
-        num = int(move[2:],16)
-        self.tableau[to_] += self.tableau[from_][-num:]
-        self.tableau[from_] = self.tableau[from_][:-num]
-        if len(self.tableau[from_]) == 0:
-            if self.tableau[from_ - 1] != []:
-                self.tableau[from_] = self.tableau[from_ - 1][-1:]
-                self.tableau[from_ - 1] = self.tableau[from_ - 1][:-1]
-        flat = []
-        for item in self.tableau:
-            for subitem in item:
-                flat.append(subitem)
-        ba = bytearray([STANDARD_DECK.index(card) for card in flat])
-        crc = zlib.crc32(ba)
-        crchex = hex(crc)[2:]
-        if crchex not in self.mq:
-            self.mq[crchex] = 1
+        if move == '***':
+            for n in range(10):
+                card = self.deck.pop()
+                self.tableau[2 * n + 1].append(card)
         else:
-            self.mq[crchex] += 1
-        self.score = self.score_tableau()
+            from_ = COLUMNIDS.index(move[0])
+            to_ = COLUMNIDS.index(move[1])
+            num = int(move[2:],16)
+            self.tableau[to_] += self.tableau[from_][-num:]
+            self.tableau[from_] = self.tableau[from_][:-num]
+            if len(self.tableau[from_]) == 0:
+                if self.tableau[from_ - 1] != []:
+                    self.tableau[from_] = self.tableau[from_ - 1][-1:]
+                    self.tableau[from_ - 1] = self.tableau[from_ - 1][:-1]
+            flat = []
+            for item in self.tableau:
+                for subitem in item:
+                    flat.append(subitem)
+            ba = bytearray([STANDARD_DECK.index(card) for card in flat])
+            crc = zlib.crc32(ba)
+            crchex = hex(crc)[2:]
+            if crchex not in self.mq:
+                self.mq[crchex] = 1
+            else:
+                self.mq[crchex] += 1
+            self.score = self.score_tableau()
+
 
     def scan_for_full(self):
         for i in range(10):
@@ -264,14 +303,20 @@ class SpiderGame:
                     self.tableau[2*i+1].append(self.tableau[2*i].pop())
 
 
+    def update_nodes(self, move):
+        self.do_move(move)
+        self.spidertree.nodes[self.current_node].children[move] = len(self.spidertree.nodes)
+        self.spidertree.add(SpiderNode())
+        self.spidertree.connect(self.current_node, len(self.spidertree.nodes) - 1, move)
+        self.current_node = self.spidertree.nodes[self.current_node].children[move]
+        self.logger.add_move(move)
 
 
     def execute(self):
-
-        self.game_setup('87654321') #'1361ec2b')
+        self.game_setup()
         self.spidertree.add(SpiderNode())
         while True:
-            moves = self.getmoves()
+            redeal_flag = False
             cycle_error = False
             for value in self.mq.values():
                 if value >= 10:
@@ -279,55 +324,48 @@ class SpiderGame:
                     break
             if len(list(self.mq)) > 20:
                 self.mq = {}
-            if (not moves or cycle_error) and self.deck:
-                self.redeal()
-                self.mq = {}
-                continue
-            elif not moves:
-                break
 
-            for move in moves:
-                self.spidertree.nodes[self.current_node].children[move] = None
-            chosen = ran.choice(moves)
+            moves = self.getmoves()
+            if (not moves or cycle_error):
+                if self.deck:
+                    redeal_flag = True
+                    self.mq = {}
+                elif cycle_error:
+                    break
+                elif not moves:
+                    break
 
-            self.spidertree.nodes[self.current_node].children[chosen] = len(self.spidertree.nodes)
-            self.spidertree.add(SpiderNode())
-            self.spidertree.connect(self.current_node,len(self.spidertree.nodes) - 1,chosen)
-            self.do_move(chosen)
-            upcards = [self.tableau[2*i+1] for i in range(10) ]
-            print(f"From: {(COLUMNIDS.index(chosen[0]) - 1)//2}, To: {(COLUMNIDS.index(chosen[1]) - 1)//2}, Num: {COLUMNIDS.index(chosen[2])}\n UP: {upcards}")
-            self.scan_for_full()
-            self.logger.add_move(chosen)
-            self.current_node = self.spidertree.nodes[self.current_node].children[chosen]
+            if not redeal_flag:
+                for move in moves:
+                    self.spidertree.nodes[self.current_node].children[move] = None
+                chosen = ran.choice(moves)
+                self.update_nodes(chosen)
+                self.scan_for_full()
+            else:
+                self.update_nodes('***')
         if len(self.full_suits) == 8:
             print('CONGRATULATIONS - you won.')
         else:
             print('Sorry, better luck next time - you lost.')
 
 
-def save_state(data):
-    with open('pickles/spider_state.pickle','wb') as f:
-        pickle.dump(data,f,pickle.HIGHEST_PROTOCOL)
+    def load_state(self):
+        with open('pickles/'+ self.state_filename + '.pickle', 'rb') as f:
+            data = pickle.load(f)
+        return data
 
-def load_state():
-    with open('pickles/spider_state.pickle','rb') as f:
-        data = pickle.load(f)
-    return data
 
+    @staticmethod
+    def save_state(data):
+        now = dt.datetime.now()
+        pklfile_name = now.strftime("%d-%H-%M-%S") +'.txt'
+        with open('pickles/'+pklfile_name +'.pickle','wb') as f:
+            pickle.dump(data,f,pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == "__main__":
-    sg = SpiderGame()
+    sg = SpiderGame('1361ec2b','23-12-50-04')
     sg.execute()
-    save_state(sg.spidertree.nodes)
-    data = load_state()
+    #sg.logger.save()
+    #sg.save_state(sg.spidertree)
     pass
-
-
-
-
-
-
-
-
-
