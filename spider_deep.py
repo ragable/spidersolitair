@@ -30,7 +30,7 @@ class MoveLogger:
 
     def backtrack(self):
         if self.backtrack_ndx == len(self.log) - 1:
-            self.log.append(self.log[self.backtrack_ndx] + '*')
+            self.log.append(self.log[self.backtrack_ndx] + '+')
             self.backtrack_ndx -= 1
 
 
@@ -54,6 +54,8 @@ class SpiderTree:
 
     def __init__(self):
         self.nodes = []
+        self.current_node = 0
+        
 
 
     def add(self,node):
@@ -64,23 +66,27 @@ class SpiderTree:
         self.nodes[nodenum1].children[move] = nodenum2
         self.nodes[nodenum2].parent = nodenum1
 
+    def move_down(self,move):
+        self.current_node = self.nodes[self.current_node].children[move]
 
-    def traverse_from_leaf(self, nodenum):
-        movelist = []
-        while type(self.nodes[nodenum].parent) == int and self.nodes[nodenum].parent > -1:
-            investigate = self.nodes[nodenum].parent
-            for node in list(self.nodes[investigate].children):
-                if self.nodes[investigate].children[node] == nodenum:
-                    movelist.append(node)
-            nodenum = investigate
-        rptlist = movelist[::-1]
-        print(rptlist)
+    def move_up(self):
+        self.current_node = self.nodes[self.current_node].parent
 
+    def modify_key(self,node, old_key, new_key):
+        self.nodes[node].children[new_key] = \
+            self.nodes[node].children.pop(old_key)
 
-    def general_traverse(self):
-        for node in range(len(self.nodes)):
-            if not self.nodes[node].children:
-                self.traverse_from_leaf(node)
+    def initialize_nodes(self, moves):
+        for move in moves:
+            self.nodes[self.current_node].children[move] = None
+
+    def get_parent_to_current_move(self, node):
+        parent_node = self.nodes[node].parent
+        keys = self.nodes[parent_node].children.keys()
+        for key in keys:
+            if self.nodes[parent_node].children[key] == node:
+                return key
+        return None
 
 
 class SpiderGame:
@@ -89,9 +95,8 @@ class SpiderGame:
         self.deck = []
         self.tableau = []
         self.spidertree = SpiderTree()
-        self.current_node = 0
         self.logger = MoveLogger()
-        self.mq = {}
+        self.mq = []
         self.score = None
         self.full_suits = []
         self.deck_crc = deck_crc
@@ -127,7 +132,7 @@ class SpiderGame:
                     print(f'{answer} not in leaves. Try again)')
                 else:
                     break
-            current_node = int(answer)
+            self.spidertree.current_node = int(answer)
         elif len(leaves) == 1:
             print(f'Only one leaf found {leaves[0]}. Will start from there')
             current_node = leaves[0]
@@ -150,19 +155,9 @@ class SpiderGame:
         rev_working_moves = working_moves[::-1]
         for move in rev_working_moves:
             self.do_move(move)
-        pass
 
-
-    def undo_deal(self):
-
-        for n in range(10):
-            card = self.tableau[2 * n + 1].pop()
-            self.deck.append(card)
-        self.logger.backtrack()
-
-
-    def suited_seq(self,card1,card2):
-
+    @staticmethod
+    def suited_seq(card1,card2):
         return card1[0] + card2[0] in RANKLIST and card1[1] == card2[1]
 
 
@@ -257,34 +252,50 @@ class SpiderGame:
                         moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(seqfrom)])
         return moves
 
+    def move_cleanup(self):
+        flat = []
+        for item in self.tableau:
+            for subitem in item:
+                flat.append(subitem)
+        ba = bytearray([STANDARD_DECK.index(card) for card in flat])
+        crc = zlib.crc32(ba)
+        crchex = hex(crc)[2:]
+        self.mq.append(crchex)
+        self.score = self.score_tableau()
 
-    def do_move(self,move):
+    def do_move(self,move, backtrack = False):
         if move == '***':
-            for n in range(10):
-                card = self.deck.pop()
-                self.tableau[2 * n + 1].append(card)
+            if backtrack:
+                for n in range(10):
+                    card = self.tableau[2 * n + 1].pop()
+                    self.deck.append(card)
+            else:
+                for n in range(10):
+                    card = self.deck.pop()
+                    self.tableau[2 * n + 1].append(card)
         else:
-            from_ = COLUMNIDS.index(move[0])
-            to_ = COLUMNIDS.index(move[1])
+            if backtrack:
+                from_ = COLUMNIDS.index(move[1])
+                to_ = COLUMNIDS.index(move[0])
+            else:
+                from_ = COLUMNIDS.index(move[0])
+                to_ = COLUMNIDS.index(move[1])
+            flip = move[-1] == '+'
             num = int(move[2:],16)
+            if backtrack and flip:
+                self.tableau[to_ - 1].append(self.tableau[to_].pop())
+
             self.tableau[to_] += self.tableau[from_][-num:]
             self.tableau[from_] = self.tableau[from_][:-num]
-            if len(self.tableau[from_]) == 0:
-                if self.tableau[from_ - 1] != []:
-                    self.tableau[from_] = self.tableau[from_ - 1][-1:]
-                    self.tableau[from_ - 1] = self.tableau[from_ - 1][:-1]
-            flat = []
-            for item in self.tableau:
-                for subitem in item:
-                    flat.append(subitem)
-            ba = bytearray([STANDARD_DECK.index(card) for card in flat])
-            crc = zlib.crc32(ba)
-            crchex = hex(crc)[2:]
-            if crchex not in self.mq:
-                self.mq[crchex] = 1
-            else:
-                self.mq[crchex] += 1
-            self.score = self.score_tableau()
+            if not backtrack:
+                if len(self.tableau[from_]) == 0:
+                    if self.tableau[from_ - 1] != []:
+                        self.tableau[from_] = self.tableau[from_ - 1][-1:]
+                        self.tableau[from_ - 1] = self.tableau[from_ - 1][:-1]
+                        parent_node =   self.spidertree.nodes[self.spidertree.current_node].parent
+                        self.spidertree.modify_key(parent_node,move,move+'+')
+            self.move_cleanup()
+
 
 
     def scan_for_full(self):
@@ -304,40 +315,32 @@ class SpiderGame:
 
 
     def update_nodes(self, move):
-        self.do_move(move)
-        self.spidertree.nodes[self.current_node].children[move] = len(self.spidertree.nodes)
-        self.spidertree.add(SpiderNode())
-        self.spidertree.connect(self.current_node, len(self.spidertree.nodes) - 1, move)
-        self.current_node = self.spidertree.nodes[self.current_node].children[move]
-        self.logger.add_move(move)
 
+        self.spidertree.nodes[self.spidertree.current_node].children[move] = len(self.spidertree.nodes)
+        self.spidertree.add(SpiderNode())
+        self.spidertree.connect(self.spidertree.current_node, len(self.spidertree.nodes) - 1, move)
+        self.current_node = self.spidertree.move_down(move)
+        self.logger.add_move(move)
+        self.do_move(move)
 
     def execute(self):
         self.game_setup()
         self.spidertree.add(SpiderNode())
         while True:
             redeal_flag = False
-            cycle_error = False
-            for value in self.mq.values():
-                if value >= 10:
-                    cycle_error = True
-                    break
-            if len(list(self.mq)) > 20:
-                self.mq = {}
+            cycle_error = len(self.mq) - len(set(self.mq)) > 3
 
             moves = self.getmoves()
             if (not moves or cycle_error):
                 if self.deck:
                     redeal_flag = True
-                    self.mq = {}
-                elif cycle_error:
-                    break
+                    self.mq = []
                 elif not moves:
                     break
-
+                #elif cycle_error:
+                #    break
             if not redeal_flag:
-                for move in moves:
-                    self.spidertree.nodes[self.current_node].children[move] = None
+                self.spidertree.initialize_nodes(moves)
                 chosen = ran.choice(moves)
                 self.update_nodes(chosen)
                 self.scan_for_full()
@@ -347,6 +350,34 @@ class SpiderGame:
             print('CONGRATULATIONS - you won.')
         else:
             print('Sorry, better luck next time - you lost.')
+
+    def post_process(self, adds):
+        leaves = []
+        goal = len(self.spidertree.nodes) + adds
+        for i, node in enumerate(self.spidertree.nodes):
+            if not self.spidertree.nodes[i].children:
+                leaves.append(i)
+        for leaf in leaves:
+            this_node = leaf
+            while len(self.spidertree.nodes) < goal:
+                last_node = this_node
+                parent_node = self.spidertree.nodes[this_node].parent
+                keys = self.spidertree.nodes[parent_node].children.keys()
+                values = self.spidertree.nodes[parent_node].children.values()
+                num_not_defined = len(keys) - sum([value != None for value in values])
+                if num_not_defined == 0:
+                    move = self.spidertree.get_parent_to_current_move(last_node)
+                    self.do_move(move, backtrack=True)
+                    this_node = parent_node
+                    continue
+                for key in keys:
+                    if not self.spidertree.nodes[parent_node].children[key]:
+                        move = key
+                        self.do_move(move)
+                        break
+                    else:
+                        pass
+                    self.update_nodes(move)
 
 
     def load_state(self):
@@ -364,8 +395,8 @@ class SpiderGame:
 
 
 if __name__ == "__main__":
-    sg = SpiderGame('1361ec2b','23-12-50-04')
+    sg = SpiderGame('1361ec2b')
     sg.execute()
-    #sg.logger.save()
-    #sg.save_state(sg.spidertree)
+    sg.post_process(10)
+
     pass
