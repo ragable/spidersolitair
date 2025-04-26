@@ -245,7 +245,7 @@ class SpiderGame:
                 from_ = COLUMNIDS.index(move[0])
                 to_ = COLUMNIDS.index(move[1])
             flip = move[-1] == '+'
-            num = int(move[2:],16)
+            num = int(move[2:3],16)
             if backtrack and flip:
                 self.tableau[to_ - 1].append(self.tableau[to_].pop())
 
@@ -283,7 +283,7 @@ class SpiderGame:
         self.spidertree.nodes[self.spidertree.current_node].children[move] = len(self.spidertree.nodes)
         self.spidertree.add(SpiderNode())
         self.spidertree.connect(self.spidertree.current_node, len(self.spidertree.nodes) - 1, move)
-        self.current_node = self.spidertree.move_down(move)
+        self.spidertree.move_down(move)
         self.logger.add_move(move)
         self.do_move(move)
 
@@ -339,7 +339,7 @@ class SpiderGame:
                         moves = self.getmoves()
                         self.spidertree.initialize_nodes(moves)
                         if moves:
-                            chosen = ran.choice(moves)
+                            move = ran.choice(moves)
                             continue
                         else:
                             break # found leaf
@@ -365,4 +365,3 @@ if __name__ == "__main__":
     sg = SpiderGame('1361ec2b')
     sg.execute()
     sg.post_process(10)
-    pass
