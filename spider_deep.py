@@ -343,7 +343,6 @@ class SpiderGame:
                             continue
                         else:
                             break # found leaf
-                    pass
 
 
 
