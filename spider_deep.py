@@ -14,41 +14,12 @@ COLUMNIDS = '0123456789ABCDEFGHIJ'
 STANDARD_DECK = [rank + suit for rank in RANKLIST for suit in SUITLIST]
 
 class Checkpoint:
-    def __init__(self, tableau, full_suits, score, mq, logger_loglen):
+    def __init__(self, tableau, full_suits, score, mq):
         self.tableau = tableau
         self.full_suits = full_suits
         self.score = score
         self.mq = mq
-        self.logger_loglen = logger_loglen
 
-class MoveLogger:
-
-    def __init__(self):
-        self.log = []
-        self.backtrack_ndx = 0
-        now = dt.datetime.now()
-        logfile_name = LOGGER_DIR + now.strftime("%d-%H-%M-%S") +'.txt'
-        self.logfile = open(logfile_name,'w')
-
-
-    def add_move(self,move):
-        if self.backtrack_ndx != len(self.log) - 1:
-            self.backtrack_ndx = len(self.log)
-        self.log.append(move)
-
-
-    def backtrack(self):
-        if self.backtrack_ndx == len(self.log) - 1:
-            self.log.append(self.log[self.backtrack_ndx] + '+')
-            self.backtrack_ndx -= 1
-
-
-    def save(self):
-        for item in self.log:
-            self.logfile.write(item + '\n')
-        self.logfile.close()
-        self.log = []
-        self.backtrack_ndx = 0
 
 
 class SpiderNode:
@@ -104,13 +75,13 @@ class SpiderGame:
         self.deck = []
         self.tableau = []
         self.spidertree = SpiderTree()
-        self.logger = MoveLogger()
         self.mq = []
         self.score = None
         self.full_suits = []
         self.deck_crc = deck_crc
         self.state_filename = state_filename
         self.checkpoints = []
+
     def game_setup(self):
         with open(DECK_DIR + self.deck_crc + '.txt','r') as f:
             self.deck = eval(f.read())
@@ -291,7 +262,6 @@ class SpiderGame:
         self.full_suits = cp.full_suits[:]
         self.score = cp.score
         self.mq = cp.mq[:]
-        self.logger.log = self.logger.log[:cp.logger_loglen]
 
     def update_nodes(self, move):
         # Save checkpoint BEFORE making a move
@@ -301,7 +271,6 @@ class SpiderGame:
             full_suits=self.full_suits[:],
             score=self.score,
             mq=self.mq[:],
-            logger_loglen=len(self.logger.log)
         )
         self.checkpoints.append(cp)
 
@@ -310,7 +279,6 @@ class SpiderGame:
         self.spidertree.add(SpiderNode())
         self.spidertree.connect(self.spidertree.current_node, len(self.spidertree.nodes) - 1, move)
         self.spidertree.move_down(move)
-        self.logger.add_move(move)
         self.do_move(move)
 
 
@@ -398,8 +366,7 @@ class SpiderGame:
                     move = ran.choice(moves)
                     self.update_nodes(move)
 
-                    if len(self.spidertree.nodes) % 10000 == 0:
-                        self.report_stat
+
 
 
     def load_state(self):
