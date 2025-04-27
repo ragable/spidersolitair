@@ -1,12 +1,13 @@
 import random as ran
 import datetime as dt
 import zlib
-import pickle
 import copy as cpy
 
 DECK_DIR = 'decks/'
 RESULTS_DIR = 'resultslogs/'
 PICKLE_DIR = 'pickles/'
+RESULTS_DIR = 'resultslogs/'
+DT_FILENAME = 'sdparams/params.txt'
 DEAL_SEQ = [5,1,5,1,5,1,5,1,4,1,4,1,4,1,4,1,4,1,4,1]
 RANKLIST = 'KQJT98765432A'
 SUITLIST = 'SHDC'
@@ -70,8 +71,7 @@ class SpiderTree:
 
 
 class SpiderGame:
-    def __init__(self, deck_crc, resfile_name, major = 1, minor = 1, ):
-
+    def __init__(self, deck_crc, minor ):
         self.deck = []
         self.tableau = []
         self.spidertree = SpiderTree()
@@ -80,19 +80,19 @@ class SpiderGame:
         self.full_suits = []
         self.deck_crc = deck_crc
         self.checkpoints = []
-        self.resultsfile = open(RESULTS_DIR + resfile_name,'a')
+        with open(DT_FILENAME,'r') as f:
+            fdate = eval(f.read()).strftime("%d-%H-%M-%S")
+        self.resultsfile = open(RESULTS_DIR + fdate + '-'+self.deck_crc + '.txt','a')
         self.starttime = dt.datetime.now()
         self.best_score = 0
-        self.major = major
         self.minor = minor
 
 
-    def update_results(self,rep):
+    def update_results(self):
         self.score_tableau()
         if self.score > self.best_score:
             self.best_score = self.score
             self.resultsfile.write('\n' + 50*'*' + '\n')
-            self.resultsfile.write(f'Repetition: {rep}\n')
             self.resultsfile.write(f'Best Score: {self.best_score}\n')
             self.resultsfile.write(f'Node Number: {self.spidertree.current_node}\n')
             self.resultsfile.write(f'Elapsed Time: {dt.datetime.now() - self.starttime}\n')
@@ -279,8 +279,7 @@ class SpiderGame:
 
     def restore_last_checkpoint(self):
         cp = self.checkpoints.pop()
-        import copy
-        self.tableau = copy.deepcopy(cp.tableau)
+        self.tableau = cpy.deepcopy(cp.tableau)
         self.full_suits = cp.full_suits[:]
         self.score = cp.score
         self.mq = cp.mq[:]
@@ -306,8 +305,7 @@ class SpiderGame:
 
     def execute(self):
 
-        rep = 0
-        while rep < self.major:
+        while True:
             self.game_setup()
             self.spidertree.add(SpiderNode())
             while True:
@@ -330,8 +328,7 @@ class SpiderGame:
                     self.scan_for_full()
                 else:
                     self.update_nodes('***')
-            self.post_process(self.minor,rep)
-            rep += 1
+            self.post_process(self.minor)
 
 
 
@@ -345,7 +342,7 @@ class SpiderGame:
         for i,item in enumerate(self.tableau):
             print(i,item)
 
-    def post_process(self,minor,rep):
+    def post_process(self,minor):
 
         while True:  # Outer loop: repeat until limit hit
             # Step 1: Find a leaf node
@@ -360,48 +357,46 @@ class SpiderGame:
             self.spidertree.current_node = leaf
 
             # Step 2: Walk up the tree until finding unexplored moves
+            move = self.spidertree.get_parent_to_current_move(self.spidertree.current_node)
+            if move:
+                self.restore_last_checkpoint()
+                self.spidertree.move_up()
+            else:
+                break
+
+            parent_node = self.spidertree.nodes[self.spidertree.current_node]
+            unexplored = [key for key, child in parent_node.children.items() if child is None]
+            if not unexplored:
+                continue
+
+
+
+            # Step 3: Pick and play an unexplored move
+
+            move = ran.choice(unexplored)
+            self.update_nodes(move)
+
+            # Step 4: Expand forward until dead-end
             while True:
-                move = self.spidertree.get_parent_to_current_move(self.spidertree.current_node)
-                if move:
-                    self.restore_last_checkpoint()
-                    self.spidertree.move_up()
-                else:
+                if len(self.spidertree.nodes) >= minor:
+                    return
+
+                moves = self.getmoves()
+                if not moves or len(self.mq[-3:]) != len(set(self.mq[-3:])):
+                    self.update_results()
                     break
-
-                parent_node = self.spidertree.nodes[self.spidertree.current_node]
-                unexplored = [key for key, child in parent_node.children.items() if child is None]
-                if not unexplored:
-                    continue
-
-
-
-                # Step 3: Pick and play an unexplored move
-
-                move = ran.choice(unexplored)
+                self.spidertree.initialize_nodes(moves)
+                move = ran.choice(moves)
                 self.update_nodes(move)
-
-                # Step 4: Expand forward until dead-end
-                while True:
-                    if len(self.spidertree.nodes) >= minor:
-                        return
-
-                    moves = self.getmoves()
-                    if not moves or len(self.mq[-3:]) != len(set(self.mq[-3:])):
-                        self.update_results(rep)
-                        break
-                    self.spidertree.initialize_nodes(moves)
-                    move = ran.choice(moves)
-                    self.update_nodes(move)
-                    self.scan_for_full()
+                self.scan_for_full()
 
 
-def run_process(major,minor, deck_crc = '7e3f0d41',):
-    now = dt.datetime.now()
-    resfile_name = now.strftime("%d-%H-%M-%S") + '-' + deck_crc + '.txt'
-    sg = SpiderGame(deck_crc,resfile_name,major,minor)
+def run_process(deck_crc,minor):
+    sg = SpiderGame(deck_crc, minor)
     sg.execute()
 
 
 
 if __name__ == "__main__":
-    run_process(40,10000,'7e3f0d41')
+    run_process('7e3f0d41',5000)
+    print('DONE')
