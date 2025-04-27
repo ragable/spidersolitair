@@ -5,7 +5,7 @@ import pickle
 import copy as cpy
 
 DECK_DIR = 'decks/'
-LOGGER_DIR = 'movelogs/'
+RESULTS_DIR = 'resultslogs/'
 PICKLE_DIR = 'pickles/'
 DEAL_SEQ = [5,1,5,1,5,1,5,1,4,1,4,1,4,1,4,1,4,1,4,1]
 RANKLIST = 'KQJT98765432A'
@@ -70,17 +70,37 @@ class SpiderTree:
 
 
 class SpiderGame:
-    def __init__(self, deck_crc = None, state_filename = None):
+    def __init__(self, deck_crc, resfile_name, major = 1, minor = 1, ):
 
         self.deck = []
         self.tableau = []
         self.spidertree = SpiderTree()
         self.mq = []
-        self.score = None
+        self.score = 0
         self.full_suits = []
         self.deck_crc = deck_crc
-        self.state_filename = state_filename
         self.checkpoints = []
+        self.resultsfile = open(RESULTS_DIR + resfile_name,'a')
+        self.starttime = dt.datetime.now()
+        self.best_score = 0
+        self.major = major
+        self.minor = minor
+
+
+    def update_results(self,rep):
+        self.score_tableau()
+        if self.score > self.best_score:
+            self.best_score = self.score
+            self.resultsfile.write('\n' + 50*'*' + '\n')
+            self.resultsfile.write(f'Repetition: {rep}\n')
+            self.resultsfile.write(f'Best Score: {self.best_score}\n')
+            self.resultsfile.write(f'Node Number: {self.spidertree.current_node}\n')
+            self.resultsfile.write(f'Elapsed Time: {dt.datetime.now() - self.starttime}\n')
+            self.resultsfile.write(f'Self Full Suits: {self.full_suits}\n')
+            for i in range(10):
+                self.resultsfile.write(f'{2*i + 1}: {str(self.tableau[2*i+1])} \n')
+            self.resultsfile.flush()
+
 
     def game_setup(self):
         with open(DECK_DIR + self.deck_crc + '.txt','r') as f:
@@ -92,6 +112,7 @@ class SpiderGame:
                 build.append(card)
             self.tableau.append(build)
             build = []
+
 
 
     @staticmethod
@@ -129,6 +150,7 @@ class SpiderGame:
             self.score += 10
         elif emptycolumncnt > 2:
             self.score += 20
+        self.score += 26 * len(self.full_suits)
 
 
     def seqs(self, upcards):
@@ -283,32 +305,35 @@ class SpiderGame:
 
 
     def execute(self):
-        self.game_setup()
-        self.spidertree.add(SpiderNode())
-        while True:
-            redeal_flag = False
-            cycle_error = len(self.mq) - len(set(self.mq)) > 2
 
-            moves = self.getmoves()
-            if not moves or cycle_error:
-                if self.deck:
-                    redeal_flag = True
-                    self.mq = []
-                elif not moves:
-                    break
-                elif cycle_error:
-                    break
-            if not redeal_flag:
-                self.spidertree.initialize_nodes(moves)
-                chosen = ran.choice(moves)
-                self.update_nodes(chosen)
-                self.scan_for_full()
-            else:
-                self.update_nodes('***')
-        if len(self.full_suits) == 8:
-            print('CONGRATULATIONS - you won.')
-        else:
-            print('Sorry, better luck next time - you lost.')
+        rep = 0
+        while rep < self.major:
+            self.game_setup()
+            self.spidertree.add(SpiderNode())
+            while True:
+                redeal_flag = False
+                cycle_error = len(self.mq) - len(set(self.mq)) > 2
+    
+                moves = self.getmoves()
+                if not moves or cycle_error:
+                    if self.deck:
+                        redeal_flag = True
+                        self.mq = []
+                    elif not moves:
+                        break
+                    elif cycle_error:
+                        break
+                if not redeal_flag:
+                    self.spidertree.initialize_nodes(moves)
+                    chosen = ran.choice(moves)
+                    self.update_nodes(chosen)
+                    self.scan_for_full()
+                else:
+                    self.update_nodes('***')
+            self.post_process(self.minor,rep)
+            rep += 1
+
+
 
     def count_leaves(self):
         count = 0
@@ -320,7 +345,8 @@ class SpiderGame:
         for i,item in enumerate(self.tableau):
             print(i,item)
 
-    def post_process(self):
+    def post_process(self,minor,rep):
+
         while True:  # Outer loop: repeat until limit hit
             # Step 1: Find a leaf node
             leaf = None
@@ -356,34 +382,26 @@ class SpiderGame:
 
                 # Step 4: Expand forward until dead-end
                 while True:
-                    if len(self.spidertree.nodes) >= 10000:
+                    if len(self.spidertree.nodes) >= minor:
                         return
 
                     moves = self.getmoves()
                     if not moves or len(self.mq[-3:]) != len(set(self.mq[-3:])):
+                        self.update_results(rep)
                         break
                     self.spidertree.initialize_nodes(moves)
                     move = ran.choice(moves)
                     self.update_nodes(move)
+                    self.scan_for_full()
 
 
+def run_process(major,minor, deck_crc = '7e3f0d41',):
+    now = dt.datetime.now()
+    resfile_name = now.strftime("%d-%H-%M-%S") + '-' + deck_crc + '.txt'
+    sg = SpiderGame(deck_crc,resfile_name,major,minor)
+    sg.execute()
 
-
-    def load_state(self):
-        with open('pickles/'+ self.state_filename + '.pickle', 'rb') as f:
-            data = pickle.load(f)
-        return data
-
-
-    @staticmethod
-    def save_state(data):
-        now = dt.datetime.now()
-        pklfile_name = now.strftime("%d-%H-%M-%S") +'.txt'
-        with open('pickles/'+pklfile_name +'.pickle','wb') as f:
-            pickle.dump(data,f,pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == "__main__":
-    sg = SpiderGame('1361ec2b')
-    sg.execute()
-    sg.post_process()
+    run_process(40,10000,'7e3f0d41')
