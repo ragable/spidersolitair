@@ -224,7 +224,7 @@ class SpiderDisplay:
                 engine.piles[from_idx - 1] = engine.piles[from_idx - 1][:-1]
             self.diags.collect([list(pile) for pile in engine.piles])
             self.draw_piles(engine.piles)
-            self.delay_play(0.5)
+            self.delay_play(0)
         return True
 
 
@@ -398,5 +398,5 @@ if __name__ == "__main__":
 
     for i in range(100):
         sd = SpiderDisplay()
-        sd.xeqt('1361ec2b')
+        sd.xeqt()
     pygame.quit()
