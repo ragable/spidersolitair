@@ -2,9 +2,10 @@ import random as ran
 import datetime as dt
 import zlib
 import copy as cpy
+import pickle
+
 
 DECK_DIR = 'decks/'
-RESULTS_DIR = 'resultslogs/'
 PICKLE_DIR = 'pickles/'
 RESULTS_DIR = 'resultslogs/'
 DT_FILENAME = 'sdparams/params.txt'
@@ -13,6 +14,15 @@ RANKLIST = 'KQJT98765432A'
 SUITLIST = 'SHDC'
 COLUMNIDS = '0123456789ABCDEFGHIJ'
 STANDARD_DECK = [rank + suit for rank in RANKLIST for suit in SUITLIST]
+PP_REPS = 500
+class SavedRun:
+    def __init__(self, tableau, full_suits, deck, mq, score, spider_tree):
+        self.tableau = tableau
+        self.full_suits = full_suits
+        self.deck = deck
+        self.mq = mq
+        self.score = score
+        self.spider_tree = spider_tree
 
 class Checkpoint:
     def __init__(self, tableau, full_suits, score, mq):
@@ -71,7 +81,7 @@ class SpiderTree:
 
 
 class SpiderGame:
-    def __init__(self, deck_crc, minor ):
+    def __init__(self, deck_crc):
         self.deck = []
         self.tableau = []
         self.spidertree = SpiderTree()
@@ -85,12 +95,12 @@ class SpiderGame:
         self.resultsfile = open(RESULTS_DIR + fdate + '-'+self.deck_crc + '.txt','a')
         self.starttime = dt.datetime.now()
         self.best_score = 0
-        self.minor = minor
+
 
 
     def update_results(self):
         self.score_tableau()
-        if self.score > self.best_score:
+        if self.score >= 75:
             self.best_score = self.score
             self.resultsfile.write('\n' + 50*'*' + '\n')
             self.resultsfile.write(f'Best Score: {self.best_score}\n')
@@ -278,14 +288,11 @@ class SpiderGame:
                     self.tableau[2*i+1].append(self.tableau[2*i].pop())
 
     def restore_last_checkpoint(self):
-        try:
-            cp = self.checkpoints.pop()
-            self.tableau = cpy.deepcopy(cp.tableau)
-            self.full_suits = cp.full_suits[:]
-            self.score = cp.score
-            self.mq = cp.mq[:]
-        except:
-            pass
+        cp = self.checkpoints.pop()
+        self.tableau = cpy.deepcopy(cp.tableau)
+        self.full_suits = cp.full_suits[:]
+        self.score = cp.score
+        self.mq = cp.mq[:]
 
     def update_nodes(self, move):
         # Save checkpoint BEFORE making a move
@@ -331,7 +338,7 @@ class SpiderGame:
                     self.scan_for_full()
                 else:
                     self.update_nodes('***')
-            self.post_process(self.minor)
+            self.post_process()
             return
 
 
@@ -346,7 +353,7 @@ class SpiderGame:
         for i,item in enumerate(self.tableau):
             print(i,item)
 
-    def post_process(self,minor):
+    def post_process(self):
 
         while True:  # Outer loop: repeat until limit hit
             # Step 1: Find a leaf node
@@ -383,7 +390,7 @@ class SpiderGame:
     
                 # Step 4: Expand forward until dead-end
                 while True:
-                    if len(self.spidertree.nodes) >= minor:
+                    if len(self.spidertree.nodes) >= PP_REPS:
                         return
     
                     moves = self.getmoves()
@@ -396,12 +403,31 @@ class SpiderGame:
                     self.scan_for_full()
 
 
-def run_process(deck_crc,minor):
-    sg = SpiderGame(deck_crc, minor)
-    sg.execute()
+def run_process(deck_crc,reps):
+    run_count = 0
+    while run_count < reps:
+        sg = SpiderGame(deck_crc)
+        sg.execute()
+        if sg.best_score > 80:
+            saved = SavedRun(
+                tableau=cpy.deepcopy(sg.tableau),
+                full_suits=sg.full_suits[:],
+                deck=sg.deck[:],
+                mq=sg.mq[:],
+                score=sg.best_score,
+                spider_tree = sg.spidertree
+            )
+            timestamp = dt.datetime.now().strftime("%d-%H-%M-%S")
+            with open(f'pickles/{deck_crc}-{timestamp}.pkl', 'wb') as f:
+                pickle.dump(saved, f)
+        run_count += 1
+        print(f'SG REP {run_count} DONE')
+
+
+
 
 
 
 if __name__ == "__main__":
-    run_process('7e3f0d41',5000)
+    run_process('12d21688',1000)
     print('DONE')
