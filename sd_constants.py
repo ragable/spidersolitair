@@ -1,0 +1,13 @@
+DECK_DIR = 'decks/'
+PICKLE_DIR = 'pickles/'
+RESULTS_DIR = 'resultslogs/'
+DT_FILENAME = 'sdparams/params.txt'
+DEAL_SEQ = [5,1,5,1,5,1,5,1,4,1,4,1,4,1,4,1,4,1,4,1]
+RANKLIST = 'KQJT98765432A'
+SUITLIST = 'SHDC'
+COLUMNIDS = '0123456789ABCDEFGHIJ'
+STANDARD_DECK = [rank + suit for rank in RANKLIST for suit in SUITLIST]
+PP_REPS = 1000
+SCORE_THRESHOLD = 80
+SG_REPS = 500
+NO_OF_DECKS = 1000

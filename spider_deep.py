@@ -3,18 +3,11 @@ import datetime as dt
 import zlib
 import copy as cpy
 import pickle
+import sd_constants as sdc
 
 
-DECK_DIR = 'decks/'
-PICKLE_DIR = 'pickles/'
-RESULTS_DIR = 'resultslogs/'
-DT_FILENAME = 'sdparams/params.txt'
-DEAL_SEQ = [5,1,5,1,5,1,5,1,4,1,4,1,4,1,4,1,4,1,4,1]
-RANKLIST = 'KQJT98765432A'
-SUITLIST = 'SHDC'
-COLUMNIDS = '0123456789ABCDEFGHIJ'
-STANDARD_DECK = [rank + suit for rank in RANKLIST for suit in SUITLIST]
-PP_REPS = 500
+
+
 class SavedRun:
     def __init__(self, tableau, full_suits, deck, mq, score, spider_tree):
         self.tableau = tableau
@@ -81,7 +74,7 @@ class SpiderTree:
 
 
 class SpiderGame:
-    def __init__(self, deck_crc):
+    def __init__(self,deck_crc = None):
         self.deck = []
         self.tableau = []
         self.spidertree = SpiderTree()
@@ -90,12 +83,11 @@ class SpiderGame:
         self.full_suits = []
         self.deck_crc = deck_crc
         self.checkpoints = []
-        with open(DT_FILENAME,'r') as f:
+        with open(sdc.DT_FILENAME,'r') as f:
             fdate = eval(f.read()).strftime("%d-%H-%M-%S")
-        self.resultsfile = open(RESULTS_DIR + fdate + '-'+self.deck_crc + '.txt','a')
+        self.resultsfile = open(sdc.RESULTS_DIR + fdate + '-'+self.deck_crc + '.txt','a')
         self.starttime = dt.datetime.now()
         self.best_score = 0
-
 
 
     def update_results(self):
@@ -113,10 +105,10 @@ class SpiderGame:
 
 
     def game_setup(self):
-        with open(DECK_DIR + self.deck_crc + '.txt','r') as f:
+        with open(sdc.DECK_DIR + self.deck_crc + '.txt','r') as f:
             self.deck = eval(f.read())
         build = []
-        for num in DEAL_SEQ:
+        for num in sdc.DEAL_SEQ:
             while len(build) != num:
                 card = self.deck.pop()
                 build.append(card)
@@ -127,12 +119,12 @@ class SpiderGame:
 
     @staticmethod
     def suited_seq(card1,card2):
-        return card1[0] + card2[0] in RANKLIST and card1[1] == card2[1]
+        return card1[0] + card2[0] in sdc.RANKLIST and card1[1] == card2[1]
 
 
     @staticmethod
     def sequential(card1,card2):
-        return card1[0] + card2[0] in RANKLIST
+        return card1[0] + card2[0] in sdc.RANKLIST
 
 
     def score_tableau(self):
@@ -203,22 +195,22 @@ class SpiderGame:
                 if seqfrom and seqto:
                     if self.suited_seq(sequences[i][-1],sequences[j][0]):
                         if i < j:
-                            moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(sequences[i])])
+                            moves.append(sdc.COLUMNIDS[2*j + 1] + sdc.COLUMNIDS[2*i+1] + sdc.COLUMNIDS[len(sequences[i])])
                         elif i > j:
-                            moves.append(COLUMNIDS[2 * j + 1] + COLUMNIDS[2 * i + 1] + COLUMNIDS[len(sequences[j])])
+                            moves.append(sdc.COLUMNIDS[2 * j + 1] + sdc.COLUMNIDS[2 * i + 1] + sdc.COLUMNIDS[len(sequences[j])])
                 elif seqfrom:
-                    moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(seqfrom)])
+                    moves.append(sdc.COLUMNIDS[2*j + 1] + sdc.COLUMNIDS[2*i+1] + sdc.COLUMNIDS[len(seqfrom)])
         if moves == []:
             for i,seqto in enumerate(sequences):
                 for j,seqfrom in enumerate(sequences):
                     if seqfrom and seqto:
                         if self.sequential(sequences[i][-1], sequences[j][0]):
                             if i < j:
-                                moves.append(COLUMNIDS[2 * j + 1] + COLUMNIDS[2 * i + 1] + COLUMNIDS[len(sequences[i])])
+                                moves.append(sdc.COLUMNIDS[2 * j + 1] + sdc.COLUMNIDS[2 * i + 1] + sdc.COLUMNIDS[len(sequences[i])])
                             elif i > j:
-                                moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(sequences[j])])
+                                moves.append(sdc.COLUMNIDS[2*j + 1] + sdc.COLUMNIDS[2*i+1] + sdc.COLUMNIDS[len(sequences[j])])
                     elif seqfrom:
-                        moves.append(COLUMNIDS[2*j + 1] + COLUMNIDS[2*i+1] + COLUMNIDS[len(seqfrom)])
+                        moves.append(sdc.COLUMNIDS[2*j + 1] + sdc.COLUMNIDS[2*i+1] + sdc.COLUMNIDS[len(seqfrom)])
         return moves
 
     def get_tableau_crc(self):
@@ -226,7 +218,7 @@ class SpiderGame:
         for item in self.tableau:
             for subitem in item:
                 flat.append(subitem)
-        ba = bytearray([STANDARD_DECK.index(card) for card in flat])
+        ba = bytearray([sdc.STANDARD_DECK.index(card) for card in flat])
         crc = zlib.crc32(ba)
         crchex = hex(crc)[2:]
         return crchex
@@ -249,11 +241,11 @@ class SpiderGame:
                     self.tableau[2 * n + 1].append(card)
         else:
             if backtrack:
-                from_ = COLUMNIDS.index(move[1])
-                to_ = COLUMNIDS.index(move[0])
+                from_ = sdc.COLUMNIDS.index(move[1])
+                to_ = sdc.COLUMNIDS.index(move[0])
             else:
-                from_ = COLUMNIDS.index(move[0])
-                to_ = COLUMNIDS.index(move[1])
+                from_ = sdc.COLUMNIDS.index(move[0])
+                to_ = sdc.COLUMNIDS.index(move[1])
             flip = move[-1] == '+'
             num = int(move[2:3],16)
             if backtrack and flip:
@@ -278,7 +270,7 @@ class SpiderGame:
                 suit_std = self.tableau[2*i+1][-1][1]
                 suitcount = sum([item[1] == suit_std for item in self.tableau[2*i+1]])
                 rankcount = 0
-                for k,rank in enumerate(RANKLIST):
+                for k,rank in enumerate(sdc.RANKLIST):
                     if rank == self.tableau[2*i+1][k][0]:
                         rankcount += 1
                 if suitcount == 13 and rankcount == 13:
@@ -390,7 +382,7 @@ class SpiderGame:
     
                 # Step 4: Expand forward until dead-end
                 while True:
-                    if len(self.spidertree.nodes) >= PP_REPS:
+                    if len(self.spidertree.nodes) >= sdc.PP_REPS:
                         return
     
                     moves = self.getmoves()
@@ -401,27 +393,41 @@ class SpiderGame:
                     move = ran.choice(moves)
                     self.update_nodes(move)
                     self.scan_for_full()
+def get_deck():
+    full_deck = sdc.STANDARD_DECK * 2
+    ran.shuffle(full_deck)
+    ba = bytearray([sdc.STANDARD_DECK.index(card) for card in full_deck])
+    crc = zlib.crc32(ba)
+
+    dfilename = 'decks/' + hex(crc)[2:] + '.txt'
+    with open(dfilename, 'w') as f:
+        f.write(str(full_deck))
+    return hex(crc)[2:]
 
 
-def run_process(deck_crc,reps):
-    run_count = 0
-    while run_count < reps:
-        sg = SpiderGame(deck_crc)
-        sg.execute()
-        if sg.best_score > 80:
-            saved = SavedRun(
-                tableau=cpy.deepcopy(sg.tableau),
-                full_suits=sg.full_suits[:],
-                deck=sg.deck[:],
-                mq=sg.mq[:],
-                score=sg.best_score,
-                spider_tree = sg.spidertree
-            )
-            timestamp = dt.datetime.now().strftime("%d-%H-%M-%S")
-            with open(f'pickles/{deck_crc}-{timestamp}.pkl', 'wb') as f:
-                pickle.dump(saved, f)
-        run_count += 1
-        print(f'SG REP {run_count} DONE')
+def run_process():
+    deck_count = 0
+    while deck_count < sdc.NO_OF_DECKS:
+        crc = get_deck()
+
+        run_count = 0
+        while run_count < sdc.SG_REPS:
+            sg = SpiderGame(crc)
+            sg.execute()
+            if sg.best_score > sdc.SCORE_THRESHOLD:
+                saved = SavedRun(
+                    tableau=cpy.deepcopy(sg.tableau),
+                    full_suits=sg.full_suits[:],
+                    deck=sg.deck[:],
+                    mq=sg.mq[:],
+                    score=sg.best_score,
+                    spider_tree = sg.spidertree
+                )
+                timestamp = dt.datetime.now().strftime("%d-%H-%M-%S")
+                with open(f'pickles/{crc}-{timestamp}.pkl', 'wb') as f:
+                    pickle.dump(saved, f)
+            run_count += 1
+            print(f'SG REP {run_count} DONE')
 
 
 
@@ -429,5 +435,5 @@ def run_process(deck_crc,reps):
 
 
 if __name__ == "__main__":
-    run_process('12d21688',1000)
-    print('DONE')
+    run_process()
+    print('PROCESS COMPLETE')
