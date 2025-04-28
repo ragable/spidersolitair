@@ -278,11 +278,14 @@ class SpiderGame:
                     self.tableau[2*i+1].append(self.tableau[2*i].pop())
 
     def restore_last_checkpoint(self):
-        cp = self.checkpoints.pop()
-        self.tableau = cpy.deepcopy(cp.tableau)
-        self.full_suits = cp.full_suits[:]
-        self.score = cp.score
-        self.mq = cp.mq[:]
+        try:
+            cp = self.checkpoints.pop()
+            self.tableau = cpy.deepcopy(cp.tableau)
+            self.full_suits = cp.full_suits[:]
+            self.score = cp.score
+            self.mq = cp.mq[:]
+        except:
+            pass
 
     def update_nodes(self, move):
         # Save checkpoint BEFORE making a move
@@ -329,6 +332,7 @@ class SpiderGame:
                 else:
                     self.update_nodes('***')
             self.post_process(self.minor)
+            return
 
 
 
@@ -355,40 +359,41 @@ class SpiderGame:
                 return
 
             self.spidertree.current_node = leaf
-
-            # Step 2: Walk up the tree until finding unexplored moves
-            move = self.spidertree.get_parent_to_current_move(self.spidertree.current_node)
-            if move:
-                self.restore_last_checkpoint()
-                self.spidertree.move_up()
-            else:
-                break
-
-            parent_node = self.spidertree.nodes[self.spidertree.current_node]
-            unexplored = [key for key, child in parent_node.children.items() if child is None]
-            if not unexplored:
-                continue
-
-
-
-            # Step 3: Pick and play an unexplored move
-
-            move = ran.choice(unexplored)
-            self.update_nodes(move)
-
-            # Step 4: Expand forward until dead-end
+            
             while True:
-                if len(self.spidertree.nodes) >= minor:
-                    return
-
-                moves = self.getmoves()
-                if not moves or len(self.mq[-3:]) != len(set(self.mq[-3:])):
-                    self.update_results()
+                # Step 2: Walk up the tree until finding unexplored moves
+                move = self.spidertree.get_parent_to_current_move(self.spidertree.current_node)
+                if move:
+                    self.restore_last_checkpoint()
+                    self.spidertree.move_up()
+                else:
                     break
-                self.spidertree.initialize_nodes(moves)
-                move = ran.choice(moves)
+    
+                parent_node = self.spidertree.nodes[self.spidertree.current_node]
+                unexplored = [key for key, child in parent_node.children.items() if child is None]
+                if not unexplored:
+                    continue
+    
+    
+    
+                # Step 3: Pick and play an unexplored move
+    
+                move = ran.choice(unexplored)
                 self.update_nodes(move)
-                self.scan_for_full()
+    
+                # Step 4: Expand forward until dead-end
+                while True:
+                    if len(self.spidertree.nodes) >= minor:
+                        return
+    
+                    moves = self.getmoves()
+                    if not moves or len(self.mq[-3:]) != len(set(self.mq[-3:])):
+                        self.update_results()
+                        break
+                    self.spidertree.initialize_nodes(moves)
+                    move = ran.choice(moves)
+                    self.update_nodes(move)
+                    self.scan_for_full()
 
 
 def run_process(deck_crc,minor):
