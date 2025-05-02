@@ -2,10 +2,28 @@ import random as ran
 import datetime as dt
 import zlib
 import copy as cpy
-import pickle
 import sd_constants as sdc
 
 
+class TrialNode:
+
+    def __init__(self, state, parent=None):
+        self.state = state
+        self.parent = parent
+        self.children = []
+
+
+class TrialTree:
+
+    def __init__(self):
+        self.nodes = []
+
+    def add_node(self, node):
+        self.nodes.append(node)
+
+    def connect(self, nodenum1, nodenum2):
+        self.nodes[nodenum1].children.append(nodenum2)
+        self.nodes[nodenum2].parent = nodenum1
 
 
 class SavedRun:
@@ -88,6 +106,8 @@ class SpiderGame:
         self.resultsfile = open(sdc.RESULTS_DIR + fdate + '-'+self.deck_crc + '.txt','a')
         self.starttime = dt.datetime.now()
         self.best_score = 0
+        self.trialtree = TrialTree()
+        self.snap_count = 0
 
 
     def update_results(self):
@@ -114,6 +134,7 @@ class SpiderGame:
                 build.append(card)
             self.tableau.append(build)
             build = []
+
 
 
 
@@ -305,33 +326,79 @@ class SpiderGame:
         self.do_move(move)
 
 
-    def execute(self):
 
-        while True:
-            self.game_setup()
-            self.spidertree.add(SpiderNode())
-            while True:
-                redeal_flag = False
-                cycle_error = len(self.mq) - len(set(self.mq)) > 2
-    
-                moves = self.getmoves()
-                if not moves or cycle_error:
-                    if self.deck:
-                        redeal_flag = True
-                        self.mq = []
-                    elif not moves:
-                        break
-                    elif cycle_error:
-                        break
-                if not redeal_flag:
-                    self.spidertree.initialize_nodes(moves)
-                    chosen = ran.choice(moves)
-                    self.update_nodes(chosen)
-                    self.scan_for_full()
-                else:
-                    self.update_nodes('***')
-            self.post_process()
-            return
+
+    def execute(self):
+        self.spidertree.add(SpiderNode())
+        redeal_flag = False
+        cycle_error = len(self.mq) - len(set(self.mq)) > 2
+        moves = self.getmoves()
+        if not moves or cycle_error:
+            if self.deck:
+                redeal_flag = True
+                self.mq = []
+            elif not moves:
+                return
+            elif cycle_error:
+                return
+        if not redeal_flag:
+            self.spidertree.initialize_nodes(moves)
+            chosen = ran.choice(moves)
+            self.update_nodes(chosen)
+            self.scan_for_full()
+        else:
+            self.update_nodes('***')
+
+
+    def restart(self,restart_snap):
+        self.tableau = restart_snap.tableau
+        self.full_suits = restart_snap.full_suits
+        self.deck = restart_snap.deck
+        self.mq = restart_snap.mq
+        self.spidertree = restart_snap.spider_tree
+
+    def tree_run(self):
+        self.trialtree = TrialTree()
+        self.game_setup()
+        saved = SavedRun(
+            tableau=cpy.deepcopy(self.tableau),
+            full_suits=cpy.deepcopy(self.full_suits[:]),
+            deck=cpy.deepcopy(self.deck[:]),
+            mq=cpy.deepcopy(self.mq[:]),
+            score=cpy.deepcopy(self.best_score),
+            spider_tree=cpy.deepcopy(self.spidertree)
+        )
+        self.trialtree.add_node(TrialNode(saved))
+        this_node = 0
+        count = 1
+        while len(self.trialtree.nodes) < 1092:
+            self.restart(self.trialtree.nodes[this_node].state)
+            for i in range(3):
+                self.execute()
+                saved = SavedRun(
+                    tableau=cpy.deepcopy(self.tableau),
+                    full_suits=cpy.deepcopy(self.full_suits[:]),
+                    deck=cpy.deepcopy(self.deck[:]),
+                    mq=cpy.deepcopy(self.mq[:]),
+                    score=cpy.deepcopy(self.best_score),
+                    spider_tree=cpy.deepcopy(self.spidertree)
+                )
+                self.trialtree.add_node(TrialNode(saved))
+                count += 1
+            for i in range(3):
+                self.trialtree.connect(this_node, len(self.trialtree.nodes) - 3 + i)
+        this_node += 1
+        # do a new deal
+        scores = []
+        for node in self.trialtree.nodes[-729:]:
+            scores.append(node.state.score)
+        biggest = 0
+        for score in scores:
+            if score > biggest:
+                biggest = score
+        filter = [score == biggest for score in scores]
+        pass
+
 
 
 
@@ -345,54 +412,6 @@ class SpiderGame:
         for i,item in enumerate(self.tableau):
             print(i,item)
 
-    def post_process(self):
-
-        while True:  # Outer loop: repeat until limit hit
-            # Step 1: Find a leaf node
-            leaf = None
-            for i, node in enumerate(self.spidertree.nodes):
-                if not node.children:
-                    leaf = i
-                    break
-            if leaf is None:
-                return
-
-            self.spidertree.current_node = leaf
-            
-            while True:
-                # Step 2: Walk up the tree until finding unexplored moves
-                move = self.spidertree.get_parent_to_current_move(self.spidertree.current_node)
-                if move:
-                    self.restore_last_checkpoint()
-                    self.spidertree.move_up()
-                else:
-                    break
-    
-                parent_node = self.spidertree.nodes[self.spidertree.current_node]
-                unexplored = [key for key, child in parent_node.children.items() if child is None]
-                if not unexplored:
-                    continue
-    
-    
-    
-                # Step 3: Pick and play an unexplored move
-    
-                move = ran.choice(unexplored)
-                self.update_nodes(move)
-    
-                # Step 4: Expand forward until dead-end
-                while True:
-                    if len(self.spidertree.nodes) >= sdc.PP_REPS:
-                        return
-    
-                    moves = self.getmoves()
-                    if not moves or len(self.mq[-3:]) != len(set(self.mq[-3:])):
-                        self.update_results()
-                        break
-                    self.spidertree.initialize_nodes(moves)
-                    move = ran.choice(moves)
-                    self.update_nodes(move)
-                    self.scan_for_full()
 def get_deck():
     full_deck = sdc.STANDARD_DECK * 2
     ran.shuffle(full_deck)
@@ -404,36 +423,8 @@ def get_deck():
         f.write(str(full_deck))
     return hex(crc)[2:]
 
-
-def run_process():
-    deck_count = 0
-    while deck_count < sdc.NO_OF_DECKS:
-        crc = get_deck()
-
-        run_count = 0
-        while run_count < sdc.SG_REPS:
-            sg = SpiderGame(crc)
-            sg.execute()
-            if sg.best_score > sdc.SCORE_THRESHOLD:
-                saved = SavedRun(
-                    tableau=cpy.deepcopy(sg.tableau),
-                    full_suits=sg.full_suits[:],
-                    deck=sg.deck[:],
-                    mq=sg.mq[:],
-                    score=sg.best_score,
-                    spider_tree = sg.spidertree
-                )
-                timestamp = dt.datetime.now().strftime("%d-%H-%M-%S")
-                with open(f'pickles/{crc}-{timestamp}.pkl', 'wb') as f:
-                    pickle.dump(saved, f)
-            run_count += 1
-            print(f'SG REP {run_count} DONE')
-
-
-
-
-
-
 if __name__ == "__main__":
-    run_process()
-    print('PROCESS COMPLETE')
+    if __name__ == '__main__':
+        sg= SpiderGame()
+        sg.tree_run()
+
