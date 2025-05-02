@@ -328,15 +328,17 @@ class SpiderGame:
 
 
 
-    def execute(self,move):
+    def execute(self):
         self.spidertree.add(SpiderNode())
         cycle_error = len(self.mq) - len(set(self.mq)) > 2
-        if (not move or cycle_error) and self.deck:
+        moves = self.get_moves()
+        if (not moves or cycle_error) and self.deck:
             self.mq = []
             self.update_nodes('***')
         else:
-            self.spidertree.initialize_nodes(move)
-            self.update_nodes(move)
+            self.spidertree.initialize_nodes(moves)
+            chosen = ran.choice(moves)
+            self.update_nodes(chosen)
             self.scan_for_full()
 
 
@@ -364,21 +366,8 @@ class SpiderGame:
         count = 1
         while len(self.trialtree.nodes) < 1092:
             self.restart(self.trialtree.nodes[this_node].state)
-            moves = self.getmoves()
             for i in range(3):
-                if len(moves) == 0:
-                    self.execute(None)
-                elif len(moves) == 1:
-                    self.execute(moves[0])
-                elif len(moves) == 2:
-                    if i == 0:
-                        self.execute(moves[0])
-                    else:
-                        self.execute(moves[1])
-                else: # len(moves) > 2
-                    move = ran.choice(moves)
-                    moves.remove(move)
-                self.execute(move)
+                self.execute()
                 saved = SavedRun(
                     tableau=cpy.deepcopy(self.tableau),
                     full_suits=cpy.deepcopy(self.full_suits[:]),
@@ -391,7 +380,7 @@ class SpiderGame:
                 count += 1
             for i in range(3):
                 self.trialtree.connect(this_node, len(self.trialtree.nodes) - 3 + i)
-            this_node += 1
+        this_node += 1
         # do a new deal
         scores = []
         for node in self.trialtree.nodes[-729:]:
