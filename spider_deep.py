@@ -27,13 +27,12 @@ class TrialTree:
 
 
 class SavedRun:
-    def __init__(self, tableau, full_suits, deck, mq, score, spider_tree):
+    def __init__(self, tableau, full_suits, deck, mq, score):
         self.tableau = tableau
         self.full_suits = full_suits
         self.deck = deck
         self.mq = mq
         self.score = score
-        self.spider_tree = spider_tree
 
 class Checkpoint:
     def __init__(self, tableau, full_suits, score, mq):
@@ -52,50 +51,13 @@ class SpiderNode:
         self.hash = None
 
 
-class SpiderTree:
 
-    def __init__(self):
-        self.nodes = []
-        self.current_node = 0
-        
-
-
-    def add(self,node):
-        self.nodes.append(node)
-
-
-    def connect(self,nodenum1,nodenum2, move):
-        self.nodes[nodenum1].children[move] = nodenum2
-        self.nodes[nodenum2].parent = nodenum1
-
-    def move_down(self,move):
-        self.current_node = self.nodes[self.current_node].children[move]
-
-    def move_up(self):
-        self.current_node = self.nodes[self.current_node].parent
-
-    def modify_key(self,node, old_key, new_key):
-        self.nodes[node].children[new_key] = \
-            self.nodes[node].children.pop(old_key)
-
-    def initialize_nodes(self, moves):
-        for move in moves:
-            self.nodes[self.current_node].children[move] = None
-
-    def get_parent_to_current_move(self, node):
-        parent_node = self.nodes[node].parent
-        keys = self.nodes[parent_node].children.keys()
-        for key in keys:
-            if self.nodes[parent_node].children[key] == node:
-                return key
-        return None
 
 
 class SpiderGame:
     def __init__(self,deck_crc = None):
         self.deck = []
         self.tableau = []
-        self.spidertree = SpiderTree()
         self.mq = []
         self.score = 0
         self.full_suits = []
@@ -107,7 +69,8 @@ class SpiderGame:
         self.starttime = dt.datetime.now()
         self.best_score = 0
         self.trialtree = TrialTree()
-        self.snap_count = 0
+        self.working_node = None
+
 
 
     def update_results(self):
@@ -116,7 +79,7 @@ class SpiderGame:
             self.best_score = self.score
             self.resultsfile.write('\n' + 50*'*' + '\n')
             self.resultsfile.write(f'Best Score: {self.best_score}\n')
-            self.resultsfile.write(f'Node Number: {self.spidertree.current_node}\n')
+
             self.resultsfile.write(f'Elapsed Time: {dt.datetime.now() - self.starttime}\n')
             self.resultsfile.write(f'Self Full Suits: {self.full_suits}\n')
             for i in range(10):
@@ -247,7 +210,7 @@ class SpiderGame:
     def move_cleanup(self):
         crchex= self.get_tableau_crc()
         self.mq.append(crchex)
-        self.spidertree.nodes[self.spidertree.current_node].hash = crchex
+
         self.score_tableau()
 
     def do_move(self,move, backtrack = False):
@@ -279,8 +242,7 @@ class SpiderGame:
                     if self.tableau[from_ - 1] != []:
                         self.tableau[from_] = self.tableau[from_ - 1][-1:]
                         self.tableau[from_ - 1] = self.tableau[from_ - 1][:-1]
-                        parent_node =   self.spidertree.nodes[self.spidertree.current_node].parent
-                        self.spidertree.modify_key(parent_node,move,move+'+')
+
             self.move_cleanup()
 
 
@@ -300,45 +262,16 @@ class SpiderGame:
                 if self.tableau[2*i+1] == [] and len(self.tableau[2*i]) > 0:
                     self.tableau[2*i+1].append(self.tableau[2*i].pop())
 
-    def restore_last_checkpoint(self):
-        cp = self.checkpoints.pop()
-        self.tableau = cpy.deepcopy(cp.tableau)
-        self.full_suits = cp.full_suits[:]
-        self.score = cp.score
-        self.mq = cp.mq[:]
-
-    def update_nodes(self, move):
-        # Save checkpoint BEFORE making a move
-
-        cp = Checkpoint(
-            tableau=cpy.deepcopy(self.tableau),
-            full_suits=self.full_suits[:],
-            score=self.score,
-            mq=self.mq[:],
-        )
-        self.checkpoints.append(cp)
-
-        # (Now do your normal stuff)
-        self.spidertree.nodes[self.spidertree.current_node].children[move] = len(self.spidertree.nodes)
-        self.spidertree.add(SpiderNode())
-        self.spidertree.connect(self.spidertree.current_node, len(self.spidertree.nodes) - 1, move)
-        self.spidertree.move_down(move)
-        self.do_move(move)
-
-
-
 
     def execute(self):
-        self.spidertree.add(SpiderNode())
         cycle_error = len(self.mq) - len(set(self.mq)) > 2
-        moves = self.get_moves()
+        moves = self.getmoves()
         if (not moves or cycle_error) and self.deck:
             self.mq = []
-            self.update_nodes('***')
+            self.do_move('***')
         else:
-            self.spidertree.initialize_nodes(moves)
             chosen = ran.choice(moves)
-            self.update_nodes(chosen)
+            self.do_move(chosen)
             self.scan_for_full()
 
 
@@ -348,7 +281,6 @@ class SpiderGame:
         self.full_suits = restart_snap.full_suits
         self.deck = restart_snap.deck
         self.mq = restart_snap.mq
-        self.spidertree = restart_snap.spider_tree
 
     def tree_run(self):
         self.trialtree = TrialTree()
@@ -359,14 +291,14 @@ class SpiderGame:
             deck=cpy.deepcopy(self.deck[:]),
             mq=cpy.deepcopy(self.mq[:]),
             score=cpy.deepcopy(self.best_score),
-            spider_tree=cpy.deepcopy(self.spidertree)
         )
         self.trialtree.add_node(TrialNode(saved))
         this_node = 0
-        count = 1
+        self.working_node = saved
         while len(self.trialtree.nodes) < 1092:
-            self.restart(self.trialtree.nodes[this_node].state)
+
             for i in range(3):
+                self.restart(self.trialtree.nodes[this_node].state)
                 self.execute()
                 saved = SavedRun(
                     tableau=cpy.deepcopy(self.tableau),
@@ -374,10 +306,9 @@ class SpiderGame:
                     deck=cpy.deepcopy(self.deck[:]),
                     mq=cpy.deepcopy(self.mq[:]),
                     score=cpy.deepcopy(self.best_score),
-                    spider_tree=cpy.deepcopy(self.spidertree)
                 )
                 self.trialtree.add_node(TrialNode(saved))
-                count += 1
+
             for i in range(3):
                 self.trialtree.connect(this_node, len(self.trialtree.nodes) - 3 + i)
         this_node += 1
@@ -389,18 +320,7 @@ class SpiderGame:
         for score in scores:
             if score > biggest:
                 biggest = score
-        filter = [score == biggest for score in scores]
-        pass
 
-
-
-
-    def count_leaves(self):
-        count = 0
-        for i, node in enumerate(self.spidertree.nodes):
-            if not self.spidertree.nodes[i].children:
-                count += 1
-        return count
     def print_tableau(self):
         for i,item in enumerate(self.tableau):
             print(i,item)
