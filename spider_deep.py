@@ -328,26 +328,17 @@ class SpiderGame:
 
 
 
-    def execute(self):
+    def execute(self,move):
         self.spidertree.add(SpiderNode())
-        redeal_flag = False
         cycle_error = len(self.mq) - len(set(self.mq)) > 2
-        moves = self.getmoves()
-        if not moves or cycle_error:
-            if self.deck:
-                redeal_flag = True
-                self.mq = []
-            elif not moves:
-                return
-            elif cycle_error:
-                return
-        if not redeal_flag:
-            self.spidertree.initialize_nodes(moves)
-            chosen = ran.choice(moves)
-            self.update_nodes(chosen)
-            self.scan_for_full()
-        else:
+        if (not move or cycle_error) and self.deck:
+            self.mq = []
             self.update_nodes('***')
+        else:
+            self.spidertree.initialize_nodes(move)
+            self.update_nodes(move)
+            self.scan_for_full()
+
 
 
     def restart(self,restart_snap):
@@ -373,8 +364,21 @@ class SpiderGame:
         count = 1
         while len(self.trialtree.nodes) < 1092:
             self.restart(self.trialtree.nodes[this_node].state)
+            moves = self.getmoves()
             for i in range(3):
-                self.execute()
+                if len(moves) == 0:
+                    self.execute(None)
+                elif len(moves) == 1:
+                    self.execute(moves[0])
+                elif len(moves) == 2:
+                    if i == 0:
+                        self.execute(moves[0])
+                    else:
+                        self.execute(moves[1])
+                else: # len(moves) > 2
+                    move = ran.choice(moves)
+                    moves.remove(move)
+                self.execute(move)
                 saved = SavedRun(
                     tableau=cpy.deepcopy(self.tableau),
                     full_suits=cpy.deepcopy(self.full_suits[:]),
@@ -387,7 +391,7 @@ class SpiderGame:
                 count += 1
             for i in range(3):
                 self.trialtree.connect(this_node, len(self.trialtree.nodes) - 3 + i)
-        this_node += 1
+            this_node += 1
         # do a new deal
         scores = []
         for node in self.trialtree.nodes[-729:]:
@@ -425,6 +429,6 @@ def get_deck():
 
 if __name__ == "__main__":
     if __name__ == '__main__':
-        sg= SpiderGame()
+        sg= SpiderGame('1f5734a7')
         sg.tree_run()
 
