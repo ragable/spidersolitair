@@ -85,8 +85,8 @@ class SpiderGame:
         return card1[0] + card2[0] in sdc.RANKLIST
 
 
-    def score_tableau(self):
-        upcards = [self.working_node.state.tableau[2 * i + 1] for i in range(10)]
+    def score_tableau(self, tableau):
+        upcards = [tableau[2 * i + 1] for i in range(10)]
         upcardsall = []
         for item in upcards:
             for subitem in item:
@@ -103,14 +103,16 @@ class SpiderGame:
         sscount = sum([item == '*' for item in relations])
         sccount = sum([item == '#' for item in relations])
         emptycolumncnt = sum([len(lst) == 0 for lst in upcards])
-        self.score = 2*sscount + sccount
+        score = 0
+        score += 2*sscount + sccount
         if emptycolumncnt == 1:
-            self.score += 3
+            score += 3
         elif emptycolumncnt == 2:
-            self.score += 10
+            score += 10
         elif emptycolumncnt > 2:
-            self.score += 20
-        self.score += 26 * len(self.full_suits)
+            score += 20
+        score += 26 * len(self.full_suits)
+        return score
 
 
     def seqs(self, upcards):
@@ -145,7 +147,7 @@ class SpiderGame:
 
 
     def getmoves(self):
-        upcards = [self.working_node.state.tableau[2*i+1] for i in range(10)]
+        upcards = [self.working_node.tableau[2*i+1] for i in range(10)]
         sequences = self.seqs(upcards)
         moves = []
         for i,seqto in enumerate(sequences):
@@ -173,7 +175,7 @@ class SpiderGame:
 
     def get_tableau_crc(self):
         flat = []
-        for item in self.working_node.state.tableau:
+        for item in self.working_node.tableau:
             for subitem in item:
                 flat.append(subitem)
         ba = bytearray([sdc.STANDARD_DECK.index(card) for card in flat])
@@ -185,44 +187,43 @@ class SpiderGame:
     def do_move(self,move):
         if move == '***':
             for n in range(10):
-                card = self.working_node.state.deck.pop()
-                self.working_node.state.tableau[2 * n + 1].append(card)
+                card = self.working_node.deck.pop()
+                self.working_node.tableau[2 * n + 1].append(card)
         else:
             from_ = sdc.COLUMNIDS.index(move[0])
             to_ = sdc.COLUMNIDS.index(move[1])
             num = int(move[2:3],16)
-            self.working_node.state.tableau[to_] += self.working_node.state.tableau[from_][-num:]
-            self.working_node.state.tableau[from_] = self.working_node.state.tableau[from_][:-num]
-            if len(self.working_node.state.tableau[from_]) == 0:
-                if self.working_node.state.tableau[from_ - 1]:
-                    self.working_node.state.tableau[from_] = self.working_node.state.tableau[from_ - 1][-1:]
-                    self.working_node.state.tableau[from_ - 1] = self.working_node.state.tableau[from_ - 1][:-1]
+            self.working_node.tableau[to_] += self.working_node.tableau[from_][-num:]
+            self.working_node.tableau[from_] = self.working_node.tableau[from_][:-num]
+            if len(self.working_node.tableau[from_]) == 0:
+                if self.working_node.tableau[from_ - 1]:
+                    self.working_node.tableau[from_] = self.working_node.tableau[from_ - 1][-1:]
+                    self.working_node.tableau[from_ - 1] = self.working_node.tableau[from_ - 1][:-1]
 
             crchex= self.get_tableau_crc()
             self.mq.append(crchex)
-            self.score_tableau()
 
 
     def scan_for_full(self):
         for i in range(10):
-            if len(self.working_node.state.tableau[2*i + 1]) >= 13:
-                suit_std = self.working_node.state.tableau[2*i+1][-1][1]
-                suitcount = sum([item[1] == suit_std for item in self.working_node.state.tableau[2*i+1]])
+            if len(self.working_node.tableau[2*i + 1]) >= 13:
+                suit_std = self.working_node.tableau[2*i+1][-1][1]
+                suitcount = sum([item[1] == suit_std for item in self.working_node.tableau[2*i+1]])
                 rankcount = 0
                 for k,rank in enumerate(sdc.RANKLIST):
-                    if rank == self.working_node.state.tableau[2*i+1][k][0]:
+                    if rank == self.working_node.tableau[2*i+1][k][0]:
                         rankcount += 1
                 if suitcount == 13 and rankcount == 13:
                     self.full_suits.append(suit_std)
-                del self.working_node.state.tableau[2*i+1][-13:]
-                if not self.working_node.state.tableau[2*i+1] and len(self.working_node.state.tableau[2*i]) > 0:
-                    self.working_node.state.tableau[2*i+1].append(self.working_node.state.tableau[2*i].pop())
+                del self.working_node.tableau[2*i+1][-13:]
+                if not self.working_node.tableau[2*i+1] and len(self.working_node.tableau[2*i]) > 0:
+                    self.working_node.tableau[2*i+1].append(self.working_node.tableau[2*i].pop())
 
 
     def execute(self):
         cycle_error = len(self.mq) - len(set(self.mq)) > 2
         moves = self.getmoves()
-        if (not moves or cycle_error) and self.working_node.state.deck:
+        if (not moves or cycle_error) and self.working_node.deck:
             self.mq = []
             self.do_move('***')
         else:
@@ -241,39 +242,65 @@ class SpiderGame:
     def tree_run(self):
         self.trialtree = TrialTree()
         self.game_setup()
+
+        # Save initial state as a SavedRun
         saved = SavedRun(
             tableau=cpy.deepcopy(self.working_node.tableau),
-            full_suits=cpy.deepcopy(self.working_node.full_suits[:]),
-            deck=cpy.deepcopy(self.working_node.deck[:]),
-            mq=cpy.deepcopy(self.working_node.mq[:]),
+            full_suits=cpy.deepcopy(self.working_node.full_suits),
+            deck=cpy.deepcopy(self.working_node.deck),
+            mq=cpy.deepcopy(self.working_node.mq),
         )
-        self.trialtree.add_node(TrialNode(saved))
-        this_node = 0
-        self.working_node = saved
-        while len(self.trialtree.nodes) < 1092:
+        root_node = TrialNode(saved)
+        self.trialtree.add_node(root_node)
 
-            for i in range(3):
-                self.working_node = cpy.deepcopy(self.trialtree.nodes[this_node])
-                self.execute()
+        this_node = 0
+        MAX_NODES = 1000
+        MAX_DEPTH = 50  # prevent infinite loops
+
+        while len(self.trialtree.nodes) < MAX_NODES and this_node < len(self.trialtree.nodes):
+            for _ in range(3):  # try 3 variants from this node
+                self.working_node = cpy.deepcopy(self.trialtree.nodes[this_node].state)
+
+                depth = 0
+                while depth < MAX_DEPTH:
+                    moves = self.getmoves()
+                    if not moves and self.working_node.deck:
+                        self.mq = []
+                        self.do_move('***')
+                        self.scan_for_full()
+                    elif not moves:
+                        break
+                    else:
+                        prev_crc = self.get_tableau_crc()
+                        self.execute()
+                        depth += 1
+                        new_crc = self.get_tableau_crc()
+                        if new_crc == prev_crc:
+                            break  # stuck or repeating
+
+                # Save resulting state
                 saved = SavedRun(
-                    tableau=cpy.deepcopy(self.working_node.state.tableau),
-                    full_suits=cpy.deepcopy(self.working_node.state.full_suits[:]),
-                    deck=cpy.deepcopy(self.working_node.state.deck[:]),
-                    mq=cpy.deepcopy(self.working_node.state.mq[:]),
+                    tableau=cpy.deepcopy(self.working_node.tableau),
+                    full_suits=cpy.deepcopy(self.working_node.full_suits),
+                    deck=cpy.deepcopy(self.working_node.deck),
+                    mq=cpy.deepcopy(self.working_node.mq),
                 )
                 self.trialtree.add_node(TrialNode(saved))
 
+            # Connect new children to this node
             for i in range(3):
                 self.trialtree.connect(this_node, len(self.trialtree.nodes) - 3 + i)
+
             this_node += 1
 
-        scores = []
-        for node in self.trialtree.nodes[-729:]:
-            scores.append(node.state.score)
-        biggest = 0
-        for score in scores:
-            if score > biggest:
-                biggest = score
+        # Evaluate scores of final nodes
+        scores = [
+            self.score_tableau(node.state.tableau)
+            for node in self.trialtree.nodes[-(len(self.trialtree.nodes) - 1)//2:]
+        ]
+        best_score = max(scores)
+        print(f"Best score from trial run: {best_score}")
+
 
     def print_tableau(self):
         for i,item in enumerate(self.tableau):
@@ -294,4 +321,5 @@ if __name__ == "__main__":
     if __name__ == '__main__':
         sg= SpiderGame('1f5734a7')
         sg.tree_run()
+        pass
 
