@@ -27,29 +27,11 @@ class TrialTree:
 
 
 class SavedRun:
-    def __init__(self, tableau, full_suits, deck, mq, score):
+    def __init__(self, tableau, full_suits, deck, mq):
         self.tableau = tableau
         self.full_suits = full_suits
         self.deck = deck
         self.mq = mq
-        self.score = score
-
-class Checkpoint:
-    def __init__(self, tableau, full_suits, score, mq):
-        self.tableau = tableau
-        self.full_suits = full_suits
-        self.score = score
-        self.mq = mq
-
-
-
-class SpiderNode:
-
-    def __init__(self):
-        self.parent = None
-        self.children = {}
-        self.hash = None
-
 
 
 
@@ -67,36 +49,28 @@ class SpiderGame:
             fdate = eval(f.read()).strftime("%d-%H-%M-%S")
         self.resultsfile = open(sdc.RESULTS_DIR + fdate + '-'+self.deck_crc + '.txt','a')
         self.starttime = dt.datetime.now()
-        self.best_score = 0
         self.trialtree = TrialTree()
-        self.working_node = None
+        self.working_node = SavedRun(
+            tableau= [],
+            full_suits= [],
+            deck= [],
+            mq= [],
+        )
 
 
-
-    def update_results(self):
-        self.score_tableau()
-        if self.score >= 75:
-            self.best_score = self.score
-            self.resultsfile.write('\n' + 50*'*' + '\n')
-            self.resultsfile.write(f'Best Score: {self.best_score}\n')
-
-            self.resultsfile.write(f'Elapsed Time: {dt.datetime.now() - self.starttime}\n')
-            self.resultsfile.write(f'Self Full Suits: {self.full_suits}\n')
-            for i in range(10):
-                self.resultsfile.write(f'{2*i + 1}: {str(self.tableau[2*i+1])} \n')
-            self.resultsfile.flush()
 
 
     def game_setup(self):
         with open(sdc.DECK_DIR + self.deck_crc + '.txt','r') as f:
-            self.deck = eval(f.read())
+            self.working_node.deck = eval(f.read())
         build = []
         for num in sdc.DEAL_SEQ:
             while len(build) != num:
-                card = self.deck.pop()
+                card = self.working_node.deck.pop()
                 build.append(card)
-            self.tableau.append(build)
+            self.working_node.tableau.append(build)
             build = []
+        pass
 
 
 
@@ -112,7 +86,7 @@ class SpiderGame:
 
 
     def score_tableau(self):
-        upcards = [self.tableau[2 * i + 1] for i in range(10)]
+        upcards = [self.working_node.state.tableau[2 * i + 1] for i in range(10)]
         upcardsall = []
         for item in upcards:
             for subitem in item:
@@ -171,7 +145,7 @@ class SpiderGame:
 
 
     def getmoves(self):
-        upcards = [self.tableau[2*i+1] for i in range(10)]
+        upcards = [self.working_node.state.tableau[2*i+1] for i in range(10)]
         sequences = self.seqs(upcards)
         moves = []
         for i,seqto in enumerate(sequences):
@@ -184,7 +158,7 @@ class SpiderGame:
                             moves.append(sdc.COLUMNIDS[2 * j + 1] + sdc.COLUMNIDS[2 * i + 1] + sdc.COLUMNIDS[len(sequences[j])])
                 elif seqfrom:
                     moves.append(sdc.COLUMNIDS[2*j + 1] + sdc.COLUMNIDS[2*i+1] + sdc.COLUMNIDS[len(seqfrom)])
-        if moves == []:
+        if not moves:
             for i,seqto in enumerate(sequences):
                 for j,seqfrom in enumerate(sequences):
                     if seqfrom and seqto:
@@ -199,7 +173,7 @@ class SpiderGame:
 
     def get_tableau_crc(self):
         flat = []
-        for item in self.tableau:
+        for item in self.working_node.state.tableau:
             for subitem in item:
                 flat.append(subitem)
         ba = bytearray([sdc.STANDARD_DECK.index(card) for card in flat])
@@ -207,66 +181,48 @@ class SpiderGame:
         crchex = hex(crc)[2:]
         return crchex
 
-    def move_cleanup(self):
-        crchex= self.get_tableau_crc()
-        self.mq.append(crchex)
 
-        self.score_tableau()
-
-    def do_move(self,move, backtrack = False):
+    def do_move(self,move):
         if move == '***':
-            if backtrack:
-                for n in range(10):
-                    card = self.tableau[2 * n + 1].pop()
-                    self.deck.append(card)
-            else:
-                for n in range(10):
-                    card = self.deck.pop()
-                    self.tableau[2 * n + 1].append(card)
+            for n in range(10):
+                card = self.working_node.state.deck.pop()
+                self.working_node.state.tableau[2 * n + 1].append(card)
         else:
-            if backtrack:
-                from_ = sdc.COLUMNIDS.index(move[1])
-                to_ = sdc.COLUMNIDS.index(move[0])
-            else:
-                from_ = sdc.COLUMNIDS.index(move[0])
-                to_ = sdc.COLUMNIDS.index(move[1])
-            flip = move[-1] == '+'
+            from_ = sdc.COLUMNIDS.index(move[0])
+            to_ = sdc.COLUMNIDS.index(move[1])
             num = int(move[2:3],16)
-            if backtrack and flip:
-                self.tableau[to_ - 1].append(self.tableau[to_].pop())
+            self.working_node.state.tableau[to_] += self.working_node.state.tableau[from_][-num:]
+            self.working_node.state.tableau[from_] = self.working_node.state.tableau[from_][:-num]
+            if len(self.working_node.state.tableau[from_]) == 0:
+                if self.working_node.state.tableau[from_ - 1]:
+                    self.working_node.state.tableau[from_] = self.working_node.state.tableau[from_ - 1][-1:]
+                    self.working_node.state.tableau[from_ - 1] = self.working_node.state.tableau[from_ - 1][:-1]
 
-            self.tableau[to_] += self.tableau[from_][-num:]
-            self.tableau[from_] = self.tableau[from_][:-num]
-            if not backtrack:
-                if len(self.tableau[from_]) == 0:
-                    if self.tableau[from_ - 1] != []:
-                        self.tableau[from_] = self.tableau[from_ - 1][-1:]
-                        self.tableau[from_ - 1] = self.tableau[from_ - 1][:-1]
-
-            self.move_cleanup()
-
+            crchex= self.get_tableau_crc()
+            self.mq.append(crchex)
+            self.score_tableau()
 
 
     def scan_for_full(self):
         for i in range(10):
-            if len(self.tableau[2*i + 1]) >= 13:
-                suit_std = self.tableau[2*i+1][-1][1]
-                suitcount = sum([item[1] == suit_std for item in self.tableau[2*i+1]])
+            if len(self.working_node.state.tableau[2*i + 1]) >= 13:
+                suit_std = self.working_node.state.tableau[2*i+1][-1][1]
+                suitcount = sum([item[1] == suit_std for item in self.working_node.state.tableau[2*i+1]])
                 rankcount = 0
                 for k,rank in enumerate(sdc.RANKLIST):
-                    if rank == self.tableau[2*i+1][k][0]:
+                    if rank == self.working_node.state.tableau[2*i+1][k][0]:
                         rankcount += 1
                 if suitcount == 13 and rankcount == 13:
                     self.full_suits.append(suit_std)
-                del self.tableau[2*i+1][-13:]
-                if self.tableau[2*i+1] == [] and len(self.tableau[2*i]) > 0:
-                    self.tableau[2*i+1].append(self.tableau[2*i].pop())
+                del self.working_node.state.tableau[2*i+1][-13:]
+                if not self.working_node.state.tableau[2*i+1] and len(self.working_node.state.tableau[2*i]) > 0:
+                    self.working_node.state.tableau[2*i+1].append(self.working_node.state.tableau[2*i].pop())
 
 
     def execute(self):
         cycle_error = len(self.mq) - len(set(self.mq)) > 2
         moves = self.getmoves()
-        if (not moves or cycle_error) and self.deck:
+        if (not moves or cycle_error) and self.working_node.state.deck:
             self.mq = []
             self.do_move('***')
         else:
@@ -286,11 +242,10 @@ class SpiderGame:
         self.trialtree = TrialTree()
         self.game_setup()
         saved = SavedRun(
-            tableau=cpy.deepcopy(self.tableau),
-            full_suits=cpy.deepcopy(self.full_suits[:]),
-            deck=cpy.deepcopy(self.deck[:]),
-            mq=cpy.deepcopy(self.mq[:]),
-            score=cpy.deepcopy(self.best_score),
+            tableau=cpy.deepcopy(self.working_node.tableau),
+            full_suits=cpy.deepcopy(self.working_node.full_suits[:]),
+            deck=cpy.deepcopy(self.working_node.deck[:]),
+            mq=cpy.deepcopy(self.working_node.mq[:]),
         )
         self.trialtree.add_node(TrialNode(saved))
         this_node = 0
@@ -298,21 +253,20 @@ class SpiderGame:
         while len(self.trialtree.nodes) < 1092:
 
             for i in range(3):
-                self.restart(self.trialtree.nodes[this_node].state)
+                self.working_node = cpy.deepcopy(self.trialtree.nodes[this_node])
                 self.execute()
                 saved = SavedRun(
-                    tableau=cpy.deepcopy(self.tableau),
-                    full_suits=cpy.deepcopy(self.full_suits[:]),
-                    deck=cpy.deepcopy(self.deck[:]),
-                    mq=cpy.deepcopy(self.mq[:]),
-                    score=cpy.deepcopy(self.best_score),
+                    tableau=cpy.deepcopy(self.working_node.state.tableau),
+                    full_suits=cpy.deepcopy(self.working_node.state.full_suits[:]),
+                    deck=cpy.deepcopy(self.working_node.state.deck[:]),
+                    mq=cpy.deepcopy(self.working_node.state.mq[:]),
                 )
                 self.trialtree.add_node(TrialNode(saved))
 
             for i in range(3):
                 self.trialtree.connect(this_node, len(self.trialtree.nodes) - 3 + i)
-        this_node += 1
-        # do a new deal
+            this_node += 1
+
         scores = []
         for node in self.trialtree.nodes[-729:]:
             scores.append(node.state.score)
