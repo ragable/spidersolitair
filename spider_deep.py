@@ -45,9 +45,6 @@ class SpiderGame:
         self.full_suits = []
         self.deck_crc = deck_crc
         self.checkpoints = []
-        with open(sdc.DT_FILENAME,'r') as f:
-            fdate = eval(f.read()).strftime("%d-%H-%M-%S")
-        self.resultsfile = open(sdc.RESULTS_DIR + fdate + '-'+self.deck_crc + '.txt','a')
         self.starttime = dt.datetime.now()
         self.trialtree = TrialTree()
         self.working_node = SavedRun(
@@ -254,7 +251,7 @@ class SpiderGame:
         self.trialtree.add_node(root_node)
 
         this_node = 0
-        MAX_NODES = 1000
+        MAX_NODES = 2000
         MAX_DEPTH = 50  # prevent infinite loops
 
         while len(self.trialtree.nodes) < MAX_NODES and this_node < len(self.trialtree.nodes):
@@ -318,8 +315,8 @@ def get_deck():
     return hex(crc)[2:]
 
 if __name__ == "__main__":
-    if __name__ == '__main__':
-        sg= SpiderGame('1f5734a7')
-        sg.tree_run()
-        pass
+    sg= SpiderGame('f4c0cbab')
+    sg.tree_run()
+    pass
+
 
